@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../src/generated"
 }
 
 datasource db {
@@ -17,6 +17,19 @@ enum Role {
 enum Visibility {
   PUBLIC
   PRIVATE
+}
+
+enum ClubMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ClubJoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 model User {
@@ -50,6 +63,14 @@ model User {
   taggedMedia     MediaTag[]
 
   uploadBatches   UploadBatch[]
+
+  refreshTokens   RefreshToken[]
+
+  clubsCreated    Club[]
+
+  clubJoinRequests ClubJoinRequest[] @relation("ClubJoinRequestUser")
+
+  clubJoinReviews  ClubJoinRequest[] @relation("ClubJoinRequestReviewedBy")
 }
 
 model Club {
@@ -60,11 +81,17 @@ model Club {
 
   logoUrl         String?
 
+  createdById     String
+
+  createdBy       User @relation(fields: [createdById], references: [id])
+
   createdAt       DateTime @default(now())
 
   members         ClubMember[]
 
   events          Event[]
+
+  joinRequests    ClubJoinRequest[]
 }
 
 model ClubMember {
@@ -73,6 +100,8 @@ model ClubMember {
   userId          String
   clubId          String
 
+  role            ClubMemberRole @default(MEMBER)
+
   joinedAt        DateTime @default(now())
 
   user            User @relation(fields: [userId], references: [id])
@@ -80,6 +109,43 @@ model ClubMember {
   club            Club @relation(fields: [clubId], references: [id])
 
   @@unique([userId, clubId])
+}
+
+model ClubJoinRequest {
+  id              String @id @default(cuid())
+
+  userId          String
+  clubId          String
+
+  status          ClubJoinRequestStatus @default(PENDING)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  reviewedAt      DateTime?
+  reviewedById    String?
+
+  user            User @relation("ClubJoinRequestUser", fields: [userId], references: [id])
+
+  club            Club @relation(fields: [clubId], references: [id])
+
+  reviewedBy      User? @relation("ClubJoinRequestReviewedBy", fields: [reviewedById], references: [id])
+
+  @@unique([userId, clubId])
+}
+
+model RefreshToken {
+  id              String @id @default(cuid())
+
+  userId          String
+  tokenHash       String @unique
+
+  expiresAt       DateTime
+  revokedAt       DateTime?
+
+  createdAt       DateTime @default(now())
+
+  user            User @relation(fields: [userId], references: [id])
 }
 
 model Event {
