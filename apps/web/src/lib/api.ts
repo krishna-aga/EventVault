@@ -46,13 +46,65 @@ const request = async <T>(
 };
 
 export const api = {
-  login: (email: string, password: string) =>
+  register: (name: string, email: string, password: Exclude<string, "">, role: string) =>
+    request<LoginResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ name, email, password, role }),
+    }),
+  login: (email: string, password: Exclude<string, "">) =>
     request<LoginResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
   me: (accessToken: string) => request<{ user: UserSummary }>("/auth/me", {}, accessToken),
+  
+  // Clubs
   listClubs: () => request<{ clubs: ClubSummary[] }>("/clubs"),
+  createClub: (payload: { name: string; description?: string; logoUrl?: string }, accessToken: string) =>
+    request<{ club: ClubSummary }>(
+      "/clubs",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+      accessToken,
+    ),
+  joinClub: (clubId: string, accessToken: string) =>
+    request<any>(
+      `/clubs/${clubId}/join`,
+      {
+        method: "POST",
+      },
+      accessToken,
+    ),
+  leaveClub: (clubId: string, accessToken: string) =>
+    request<any>(
+      `/clubs/${clubId}/leave`,
+      {
+        method: "POST",
+      },
+      accessToken,
+    ),
+  listJoinRequests: (clubId: string, accessToken: string) =>
+    request<{ requests: any[] }>(`/clubs/${clubId}/join-requests`, {}, accessToken),
+  reviewJoinRequest: (
+    clubId: string,
+    requestId: string,
+    status: "APPROVED" | "REJECTED",
+    accessToken: string,
+  ) =>
+    request<any>(
+      `/clubs/${clubId}/join-requests/${requestId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      },
+      accessToken,
+    ),
+  listClubMembers: (clubId: string) =>
+    request<{ members: any[] }>(`/clubs/${clubId}/members`),
+
+  // Events
   listEvents: (filters: EventFilters) => {
     const params = new URLSearchParams();
 
@@ -95,3 +147,4 @@ export const api = {
       accessToken,
     ),
 };
+

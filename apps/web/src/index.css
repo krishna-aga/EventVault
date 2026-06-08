@@ -1,54 +1,94 @@
 :root {
   color-scheme: dark;
-  font-family:
-    "Inter",
-    "Avenir Next",
-    "Trebuchet MS",
-    "Segoe UI",
-    sans-serif;
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #f7f3ec;
-  background:
-    radial-gradient(circle at top left, rgba(255, 138, 101, 0.16), transparent 28%),
-    radial-gradient(circle at top right, rgba(94, 234, 212, 0.12), transparent 30%),
-    linear-gradient(180deg, #050814 0%, #090d18 38%, #05070f 100%);
+
+  /* Color Palette Tokens */
+  --bg-primary: #03040b;
+  --bg-secondary: #080b18;
+  --bg-tertiary: #0c0f24;
+  
+  --surface-glass: rgba(13, 17, 39, 0.65);
+  --surface-glass-hover: rgba(20, 26, 56, 0.8);
+  --border-glass: rgba(255, 255, 255, 0.07);
+  --border-glass-focus: rgba(139, 92, 246, 0.5);
+
+  --accent-primary: #8b5cf6; /* Indigo / Violet */
+  --accent-primary-glow: rgba(139, 92, 246, 0.45);
+  --accent-secondary: #ec4899; /* Hot Pink */
+  --accent-secondary-glow: rgba(236, 72, 153, 0.4);
+  --accent-success: #10b981; /* Emerald */
+  --accent-warning: #f59e0b; /* Amber */
+  --accent-danger: #ef4444; /* Rose Red */
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 80px;
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --page-bg: #050814;
-  --page-surface: rgba(255, 255, 255, 0.05);
-  --page-border: rgba(255, 255, 255, 0.08);
 }
 
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-html {
+html, body {
   min-height: 100%;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  overflow-x: hidden;
 }
 
 body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(255, 138, 101, 0.1), transparent 28%),
-    radial-gradient(circle at top right, rgba(94, 234, 212, 0.08), transparent 30%),
-    linear-gradient(180deg, #04060f 0%, #090d18 40%, #04050b 100%);
+  background: 
+    radial-gradient(circle at 0% 0%, rgba(139, 92, 246, 0.15), transparent 45%),
+    radial-gradient(circle at 100% 100%, rgba(236, 72, 153, 0.12), transparent 45%),
+    linear-gradient(180deg, #03040b 0%, #070915 50%, #020308 100%);
+  background-attachment: fixed;
 }
 
+#root {
+  min-height: 100vh;
+}
+
+/* Custom Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
+/* Common Interactive Reset */
 button,
 input,
 select,
 textarea {
   font: inherit;
-}
-
-button {
-  appearance: none;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
 }
 
 a {
@@ -56,6 +96,12 @@ a {
   text-decoration: none;
 }
 
-#root {
-  min-height: 100vh;
+button {
+  cursor: pointer;
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-primary);
+  color: #ffffff;
 }
