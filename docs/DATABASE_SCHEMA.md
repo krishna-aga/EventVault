@@ -1,28 +1,29 @@
-# DATABASE_SCHEMA.md
-
 # EventVault Database Schema
 
 ## Overview
 
 EventVault uses PostgreSQL with Prisma ORM.
 
-The schema is designed to support:
+The schema supports:
 
-* Authentication & Authorization
-* Club Management
-* Event Management
-* Media Uploads
-* Social Interactions
+* Authentication and authorization
+* Club management
+* Event management
+* Media uploads
+* Social interactions
 * Notifications
-* AI Tagging & User Tagging
+* AI tagging and user tagging
 
 ---
 
-# Entity Relationship Overview
+## Entity Relationship Overview
 
 ```text
 User
  ├── ClubMember
+ ├── ClubJoinRequest (requester)
+ ├── ClubJoinRequest (reviewedBy)
+ ├── RefreshToken
  ├── Event (creator)
  ├── Media (uploader)
  ├── Comment
@@ -34,6 +35,7 @@ User
 
 Club
  ├── ClubMember
+ ├── ClubJoinRequest
  └── Event
 
 Event
@@ -52,54 +54,66 @@ Media
 
 ---
 
-# Enums
+## Enums
 
-## Role
+### Role
 
-Defines user permissions.
+| Value | Description |
+| --- | --- |
+| ADMIN | Platform administrator |
+| PHOTOGRAPHER | Can upload media |
+| CLUB_MEMBER | Member of club |
+| VIEWER | Read-only user |
 
-| Value        | Description            |
-| ------------ | ---------------------- |
-| ADMIN        | Platform administrator |
-| PHOTOGRAPHER | Can upload media       |
-| CLUB_MEMBER  | Member of club         |
-| VIEWER       | Read-only user         |
+### Visibility
+
+| Value | Description |
+| --- | --- |
+| PUBLIC | Accessible by everyone |
+| PRIVATE | Restricted access |
+
+### ClubMemberRole
+
+| Value | Description |
+| --- | --- |
+| OWNER | Club owner |
+| ADMIN | Club manager |
+| MEMBER | Standard club member |
+
+### ClubJoinRequestStatus
+
+| Value | Description |
+| --- | --- |
+| PENDING | Awaiting review |
+| APPROVED | Approved by club admin |
+| REJECTED | Rejected by club admin |
+| CANCELLED | Cancelled by requester |
 
 ---
 
-## Visibility
+## Models
 
-Defines event access level.
-
-| Value   | Description            |
-| ------- | ---------------------- |
-| PUBLIC  | Accessible by everyone |
-| PRIVATE | Restricted access      |
-
----
-
-# Models
-
-## User
+### User
 
 Represents a platform user.
 
-### Fields
+| Field | Type |
+| --- | --- |
+| id | String |
+| name | String |
+| email | String (Unique) |
+| passwordHash | String |
+| role | Role |
+| profileImage | String? |
+| createdAt | DateTime |
+| updatedAt | DateTime |
 
-| Field        | Type            |
-| ------------ | --------------- |
-| id           | String          |
-| name         | String          |
-| email        | String (Unique) |
-| passwordHash | String          |
-| role         | Role            |
-| profileImage | String?         |
-| createdAt    | DateTime        |
-| updatedAt    | DateTime        |
-
-### Relationships
+Relationships:
 
 * Club memberships
+* Club join requests
+* Refresh tokens
+* Created clubs
 * Created events
 * Uploaded media
 * Comments
@@ -109,43 +123,39 @@ Represents a platform user.
 * Tagged media
 * Upload batches
 
----
-
-## Club
+### Club
 
 Represents a club or society.
 
-### Fields
+| Field | Type |
+| --- | --- |
+| id | String |
+| name | String |
+| description | String? |
+| logoUrl | String? |
+| createdById | String |
+| createdAt | DateTime |
 
-| Field       | Type     |
-| ----------- | -------- |
-| id          | String   |
-| name        | String   |
-| description | String?  |
-| logoUrl     | String?  |
-| createdAt   | DateTime |
+Relationships:
 
-### Relationships
-
+* Creator
 * Members
+* Join requests
 * Events
 
----
-
-## ClubMember
+### ClubMember
 
 Many-to-many relationship between users and clubs.
 
-### Fields
-
-| Field    | Type     |
-| -------- | -------- |
-| id       | String   |
-| userId   | String   |
-| clubId   | String   |
+| Field | Type |
+| --- | --- |
+| id | String |
+| userId | String |
+| clubId | String |
+| role | ClubMemberRole |
 | joinedAt | DateTime |
 
-### Constraints
+Constraints:
 
 ```text
 UNIQUE(userId, clubId)
@@ -153,124 +163,116 @@ UNIQUE(userId, clubId)
 
 A user cannot join the same club twice.
 
----
+### ClubJoinRequest
 
-## Event
+Represents a user's request to join a club.
+
+| Field | Type |
+| --- | --- |
+| id | String |
+| userId | String |
+| clubId | String |
+| status | ClubJoinRequestStatus |
+| createdAt | DateTime |
+| updatedAt | DateTime |
+| reviewedAt | DateTime? |
+| reviewedById | String? |
+
+Constraints:
+
+```text
+UNIQUE(userId, clubId)
+```
+
+One join request per user per club.
+
+### RefreshToken
+
+Represents a stored refresh token for session rotation.
+
+| Field | Type |
+| --- | --- |
+| id | String |
+| userId | String |
+| tokenHash | String |
+| expiresAt | DateTime |
+| revokedAt | DateTime? |
+| createdAt | DateTime |
+
+Relationships:
+
+* User
+
+### Event
 
 Represents an event.
 
-### Fields
+| Field | Type |
+| --- | --- |
+| id | String |
+| title | String |
+| description | String? |
+| category | String |
+| visibility | Visibility |
+| location | String? |
+| eventDate | DateTime |
+| coverImage | String? |
+| createdAt | DateTime |
+| createdById | String |
+| clubId | String? |
 
-| Field       | Type       |
-| ----------- | ---------- |
-| id          | String     |
-| title       | String     |
-| description | String?    |
-| category    | String     |
-| visibility  | Visibility |
-| location    | String?    |
-| eventDate   | DateTime   |
-| coverImage  | String?    |
-| createdAt   | DateTime   |
-| createdById | String     |
-| clubId      | String?    |
-
-### Relationships
-
-* Creator
-* Club
-* Media
-* Upload batches
-
----
-
-## UploadBatch
+### UploadBatch
 
 Represents a bulk upload session.
 
-### Fields
+| Field | Type |
+| --- | --- |
+| id | String |
+| uploadedById | String |
+| eventId | String? |
+| createdAt | DateTime |
 
-| Field        | Type     |
-| ------------ | -------- |
-| id           | String   |
-| uploadedById | String   |
-| eventId      | String?  |
-| createdAt    | DateTime |
-
-### Relationships
-
-* Uploader
-* Event
-* Media
-
----
-
-## Media
+### Media
 
 Represents uploaded photos or videos.
 
-### Fields
+| Field | Type |
+| --- | --- |
+| id | String |
+| title | String? |
+| fileUrl | String |
+| thumbnailUrl | String? |
+| fileType | String |
+| fileSize | Int? |
+| uploadedAt | DateTime |
+| uploadedById | String |
+| eventId | String |
+| batchId | String? |
 
-| Field        | Type     |
-| ------------ | -------- |
-| id           | String   |
-| title        | String?  |
-| fileUrl      | String   |
-| thumbnailUrl | String?  |
-| fileType     | String   |
-| fileSize     | Int?     |
-| uploadedAt   | DateTime |
-| uploadedById | String   |
-| eventId      | String   |
-| batchId      | String?  |
-
-### Relationships
-
-* Uploader
-* Event
-* Upload batch
-* Comments
-* Likes
-* Favourites
-* Tags
-
----
-
-## Comment
+### Comment
 
 Represents comments on media.
 
-### Fields
-
-| Field     | Type     |
-| --------- | -------- |
-| id        | String   |
-| content   | String   |
+| Field | Type |
+| --- | --- |
+| id | String |
+| content | String |
 | createdAt | DateTime |
-| userId    | String   |
-| mediaId   | String   |
+| userId | String |
+| mediaId | String |
 
-### Relationships
-
-* User
-* Media
-
----
-
-## Like
+### Like
 
 Represents a like on media.
 
-### Fields
-
-| Field     | Type     |
-| --------- | -------- |
-| id        | String   |
-| userId    | String   |
-| mediaId   | String   |
+| Field | Type |
+| --- | --- |
+| id | String |
+| userId | String |
+| mediaId | String |
 | createdAt | DateTime |
 
-### Constraints
+Constraints:
 
 ```text
 UNIQUE(userId, mediaId)
@@ -278,22 +280,18 @@ UNIQUE(userId, mediaId)
 
 A user can like a media item only once.
 
----
-
-## Favourite
+### Favourite
 
 Represents saved media.
 
-### Fields
-
-| Field     | Type     |
-| --------- | -------- |
-| id        | String   |
-| userId    | String   |
-| mediaId   | String   |
+| Field | Type |
+| --- | --- |
+| id | String |
+| userId | String |
+| mediaId | String |
 | createdAt | DateTime |
 
-### Constraints
+Constraints:
 
 ```text
 UNIQUE(userId, mediaId)
@@ -301,22 +299,18 @@ UNIQUE(userId, mediaId)
 
 A user can favourite a media item only once.
 
----
-
-## MediaTag
+### MediaTag
 
 Represents user tagging in media.
 
-### Fields
-
-| Field     | Type     |
-| --------- | -------- |
-| id        | String   |
-| mediaId   | String   |
-| userId    | String   |
+| Field | Type |
+| --- | --- |
+| id | String |
+| mediaId | String |
+| userId | String |
 | createdAt | DateTime |
 
-### Constraints
+Constraints:
 
 ```text
 UNIQUE(mediaId, userId)
@@ -324,51 +318,45 @@ UNIQUE(mediaId, userId)
 
 A user can only be tagged once in a media item.
 
----
-
-## Notification
+### Notification
 
 Represents user notifications.
 
-### Fields
-
-| Field     | Type     |
-| --------- | -------- |
-| id        | String   |
-| userId    | String   |
-| message   | String   |
-| isRead    | Boolean  |
+| Field | Type |
+| --- | --- |
+| id | String |
+| userId | String |
+| message | String |
+| isRead | Boolean |
 | createdAt | DateTime |
-
-### Relationships
-
-* User
 
 ---
 
-# Current Database Statistics
+## Current Database Statistics
 
-## Total Models
+### Total Models
 
 ```text
-11 Models
+13 Models
 ```
 
 1. User
 2. Club
 3. ClubMember
-4. Event
-5. UploadBatch
-6. Media
-7. Comment
-8. Like
-9. Favourite
-10. MediaTag
-11. Notification
+4. ClubJoinRequest
+5. RefreshToken
+6. Event
+7. UploadBatch
+8. Media
+9. Comment
+10. Like
+11. Favourite
+12. MediaTag
+13. Notification
 
 ---
 
-# Future Schema Extensions
+## Future Schema Extensions
 
 Planned future additions:
 
@@ -377,16 +365,14 @@ Planned future additions:
 * Share
 * DownloadHistory
 * WatermarkConfig
-* RefreshToken
 * AuditLog
 * ActivityFeed
 * EventCategory
-* ClubJoinRequest
 
 These will be added in later roadmap phases as required.
 
 ---
 
-# Last Updated
+## Last Updated
 
-Phase 2 – Authentication & Authorization
+Phase 3 - Club Management

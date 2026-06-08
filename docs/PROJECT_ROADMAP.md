@@ -1,16 +1,14 @@
-# PROJECT_ROADMAP.md
-
 # EventVault Roadmap
 
 ## Project Goal
 
-Build a centralized Event & Media Management Platform where clubs, photographers, organizers, and members can upload, organize, discover, and interact with event media.
+Build a centralized Event and Media Management Platform where clubs, photographers, organizers, and members can upload, organize, discover, and interact with event media.
 
 ---
 
 ## Phase 1 - Foundation
 
-Status: Completed ✅
+Status: Completed
 
 ### Monorepo Setup
 
@@ -37,39 +35,39 @@ Status: Completed ✅
 
 ## Phase 2 - Authentication & Authorization
 
-Status: In Progress 🚧
+Status: Completed
 
 ### Features
 
-* [ ] User registration
-* [ ] User login
-* [ ] Password hashing (bcrypt)
-* [ ] JWT authentication
-* [ ] Protected routes
-* [ ] Current user endpoint (/me)
-* [ ] Refresh token strategy (optional)
+* [x] User registration
+* [x] User login
+* [x] Password hashing (bcrypt)
+* [x] JWT authentication
+* [x] Protected routes
+* [x] Current user endpoint (/me)
+* [x] Refresh token strategy
 
 ### Roles
 
-* [ ] Admin
-* [ ] Photographer
-* [ ] Club Member
-* [ ] Viewer
+* [x] Admin
+* [x] Photographer
+* [x] Club Member
+* [x] Viewer
 
 ---
 
 ## Phase 3 - Club Management
 
-Status: Not Started
+Status: Completed
 
 ### Features
 
-* [ ] Create club
-* [ ] Update club
-* [ ] Delete club
-* [ ] Club membership management
-* [ ] Join requests
-* [ ] Member roles
+* [x] Create club
+* [x] Update club
+* [x] Delete club
+* [x] Club membership management
+* [x] Join requests
+* [x] Member roles
 
 ---
 
@@ -232,11 +230,11 @@ Status: Future
 
 ## Current Focus
 
-1. Authentication.
-2. Authorization.
-3. User management.
-4. Club management.
-5. Event management.
+1. Event management.
+2. Media management.
+3. Access control.
+4. Social features.
+5. Notifications.
 
 ---
 

@@ -1,10 +1,8 @@
-# PROJECT_STATUS.md
-
 ## Project
 
 EventVault
 
-EventVault is a centralized Event & Media Management Platform being developed using a Turborepo monorepo architecture.
+EventVault is a centralized Event and Media Management Platform developed using a Turborepo monorepo architecture.
 
 The platform enables clubs, photographers, organizers, and members to upload, organize, search, share, and interact with event media.
 
@@ -12,9 +10,9 @@ The platform enables clubs, photographers, organizers, and members to upload, or
 
 ## Current Development Stage
 
-Phase 2 - Authentication & Authorization
+Phase 3 - Club Management
 
-Status: Ready To Start
+Status: Completed
 
 ---
 
@@ -94,6 +92,9 @@ packages/
 * [x] Basic server setup completed
 * [x] Development environment configured
 * [x] Backend server verified
+* [x] Authentication endpoints implemented
+* [x] Authorization middleware implemented
+* [x] Club management endpoints implemented
 
 ### Database
 
@@ -133,6 +134,8 @@ packages/
 * User
 * Club
 * ClubMember
+* ClubJoinRequest
+* RefreshToken
 * Event
 * UploadBatch
 * Media
@@ -148,22 +151,11 @@ packages/
 
 ### Immediate Next Steps
 
-1. Implement user registration.
-2. Implement login.
-3. Implement JWT authentication.
-4. Implement protected routes.
-5. Implement role-based authorization.
-
----
-
-## Not Started Yet
-
-### Authentication
-
-* User registration
-* Login
-* JWT authentication
-* Role-based authorization
+1. Implement event creation.
+2. Implement event editing.
+3. Implement event deletion.
+4. Implement event metadata.
+5. Implement event visibility.
 
 ### Event Management
 
@@ -210,8 +202,8 @@ packages/
 
 * Turborepo for monorepo management.
 * pnpm as package manager.
-* React + TypeScript for frontend.
-* Express + TypeScript for backend.
+* React and TypeScript for frontend.
+* Express and TypeScript for backend.
 * PostgreSQL (Neon) as database.
 * Prisma 7 as ORM.
 * Shared database package inside packages/db.
@@ -222,6 +214,6 @@ packages/
 
 ## Last Updated
 
-Foundation phase completed.
+Phase 3 completed.
 
-Current task: Authentication & Authorization.
+Current task: Event Management.
