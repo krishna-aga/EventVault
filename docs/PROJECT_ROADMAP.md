@@ -73,7 +73,7 @@ Status: Completed
 
 ## Phase 4 - Event Management
 
-Status: Not Started
+Status: Completed
 
 ### Features
 
@@ -230,11 +230,11 @@ Status: Future
 
 ## Current Focus
 
-1. Event management.
-2. Media management.
-3. Access control.
-4. Social features.
-5. Notifications.
+1. Media management.
+2. Access control.
+3. Social features.
+4. Notifications.
+5. Search & discovery.
 
 ---
 

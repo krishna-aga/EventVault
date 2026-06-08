@@ -226,3 +226,62 @@ Authorization: Bearer <accessToken>
 - `POST /clubs`, `PATCH /clubs/:clubId`, `DELETE /clubs/:clubId`, join request review, member role updates, and member removal are manager actions.
 - `GET /clubs` and `GET /clubs/:clubId` are public.
 
+---
+
+## Events
+
+### `GET /events`
+List events with optional query filters.
+
+Query params:
+
+- `sortBy` = `title`, `eventDate`, or `category`
+- `sortOrder` = `asc` or `desc`
+- `category`
+- `clubId`
+- `visibility` = `PUBLIC` or `PRIVATE`
+
+### `GET /events/:eventId`
+Fetch a single event by id.
+
+### `POST /events`
+Create an event.
+
+Header:
+
+```http
+Authorization: Bearer <accessToken>
+```
+
+Request body:
+
+```json
+{
+  "title": "Moonlight Concert",
+  "description": "An outdoor performance under the lights.",
+  "category": "Concert",
+  "visibility": "PUBLIC",
+  "location": "Central courtyard",
+  "eventDate": "2026-06-08T18:30:00.000Z",
+  "coverImage": "https://images.example.com/concert.jpg",
+  "clubId": "club_123"
+}
+```
+
+### `PATCH /events/:eventId`
+Update an event.
+
+Header:
+
+```http
+Authorization: Bearer <accessToken>
+```
+
+### `DELETE /events/:eventId`
+Delete an event.
+
+Header:
+
+```http
+Authorization: Bearer <accessToken>
+```

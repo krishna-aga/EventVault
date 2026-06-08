@@ -20,6 +20,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@repo/contracts':
+        specifier: workspace:^
+        version: link:../../packages/contracts
       '@repo/db':
         specifier: workspace:^
         version: link:../../packages/db
@@ -54,6 +57,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@repo/contracts':
+        specifier: workspace:^
+        version: link:../../packages/contracts
       react:
         specifier: ^19.2.6
         version: 19.2.7
@@ -97,6 +103,8 @@ importers:
       vite:
         specifier: ^8.0.12
         version: 8.0.16(@types/node@24.13.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)
+
+  packages/contracts: {}
 
   packages/db:
     dependencies:
