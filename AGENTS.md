@@ -1,7 +1,5 @@
 # EventVault Handoff Brief
 
-Use this file as the primary context source when continuing work on EventVault.
-Read this first, then only open the exact files needed for the current task.
 
 ## 1. Project Overview
 
@@ -109,7 +107,6 @@ Docs:
 * Read only the files needed for the task.
 * Prefer targeted file reads over repository-wide scanning.
 * Do not open `node_modules`, build outputs, or generated files unless strictly necessary.
-* Make the smallest change that fully solves the task.
 * Follow existing code style and patterns.
 * Use TypeScript.
 * Avoid unrelated refactors.
@@ -128,7 +125,6 @@ Docs:
 1. Identify the exact files that need to change.
 2. Read only those files.
 3. Make a brief plan if the task is non-trivial.
-4. Implement the smallest working solution.
 5. Update docs only if the feature or the user requested it.
 6. Verify with the lightest useful check, such as typecheck or build for the affected package.
 
