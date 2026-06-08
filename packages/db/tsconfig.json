@@ -1,10 +1,13 @@
 {
-  "extends": "../typescript-config/base.json",
-  "compilerOptions": {
-    "types": ["node"]
-  },
-  "include": [
-    "prisma.config.ts",
-    "prisma/**/*.ts"
-  ]
+    "extends": "../typescript-config/base.json",
+    "compilerOptions": {
+        "types": [
+            "node"
+        ]
+    },
+    "include": [
+        "src/**/*.ts",
+        "prisma.config.ts",
+        "prisma/**/*.ts"
+    ]
 }

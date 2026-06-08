@@ -12,9 +12,9 @@ The platform enables clubs, photographers, organizers, and members to upload, or
 
 ## Current Development Stage
 
-Phase 1 - Foundation Setup
+Phase 2 - Authentication & Authorization
 
-Status: Mostly Complete
+Status: Ready To Start
 
 ---
 
@@ -85,10 +85,7 @@ packages/
 * [x] React application created
 * [x] TypeScript configured
 * [x] Vite configured
-
-Location:
-
-apps/web
+* [x] Frontend development server verified
 
 ### Backend
 
@@ -96,10 +93,7 @@ apps/web
 * [x] TypeScript configured
 * [x] Basic server setup completed
 * [x] Development environment configured
-
-Location:
-
-apps/server
+* [x] Backend server verified
 
 ### Database
 
@@ -113,15 +107,19 @@ apps/server
 * [x] Prisma initialized
 * [x] Prisma 7 configured
 * [x] prisma.config.ts configured
-* [x] schema.prisma created
-* [x] Prisma successfully connected to Neon
+* [x] schema.prisma completed
+* [x] Prisma client generated
+* [x] Database schema pushed to Neon
 * [x] Prisma Studio verified
 
-Location:
+### Shared Database Package
 
-packages/db
+* [x] Shared Prisma client package created
+* [x] @repo/db workspace package configured
+* [x] Backend connected to Prisma client
+* [x] Database queries verified
 
-### Project Documentation
+### Documentation
 
 * [x] README.md
 * [x] AGENTS.md
@@ -130,16 +128,31 @@ packages/db
 
 ---
 
+## Current Database Models
+
+* User
+* Club
+* ClubMember
+* Event
+* UploadBatch
+* Media
+* Comment
+* Like
+* Favourite
+* MediaTag
+* Notification
+
+---
+
 ## Current Focus
 
 ### Immediate Next Steps
 
-1. Design database schema.
-2. Create Prisma models.
-3. Generate Prisma client.
-4. Export shared database package.
-5. Connect backend with Prisma.
-6. Implement authentication.
+1. Implement user registration.
+2. Implement login.
+3. Implement JWT authentication.
+4. Implement protected routes.
+5. Implement role-based authorization.
 
 ---
 
@@ -157,15 +170,14 @@ packages/db
 * Event creation
 * Event editing
 * Event deletion
-* Event categories
 * Event metadata
 
 ### Media Management
 
 * Media uploads
 * Event albums
-* Media compression
 * Media previews
+* Bulk uploads
 
 ### Social Features
 
@@ -203,23 +215,13 @@ packages/db
 * PostgreSQL (Neon) as database.
 * Prisma 7 as ORM.
 * Shared database package inside packages/db.
-
----
-
-## Notes For AI Agents
-
-* Prisma and Neon are fully configured.
-* Database connection is working.
-* Read only files necessary for the current task.
-* Avoid repository-wide scans.
-* Prefer minimal code changes.
-* Follow PROJECT_ROADMAP.md for implementation order.
-* Focus on completing the current phase before moving to future phases.
+* Centralized .env at repository root.
+* Shared Prisma client exported through @repo/db.
 
 ---
 
 ## Last Updated
 
-Foundation setup completed.
+Foundation phase completed.
 
-Current task: Database schema design and backend integration.
+Current task: Authentication & Authorization.
