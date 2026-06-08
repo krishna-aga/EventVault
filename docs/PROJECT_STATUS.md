@@ -10,7 +10,7 @@ The platform enables clubs, photographers, organizers, and members to upload, or
 
 ## Current Development Stage
 
-Phase 4 - Event Management
+Phase 9 - Search & Discovery
 
 Status: Completed
 
@@ -128,6 +128,45 @@ packages/
 * [x] AGENTS.md
 * [x] PROJECT_STATUS.md
 * [x] PROJECT_ROADMAP.md
+* [x] API_DOC.md
+* [x] DATABASE_SCHEMA.md
+
+### Media Management (Phase 5)
+
+* [x] Upload single & multiple media files (multipart/form-data)
+* [x] Media preview support (photo/video file source url resolution)
+* [x] Bulk upload sessions / batches mapped in DB
+
+### Access Control (Phase 6)
+
+* [x] Private event authorization guard (only club members can view or upload)
+* [x] Standalone event authorization checks (only creator can upload unless photographer/admin)
+* [x] Uploader permission restrictions
+
+### Social Features (Phase 7)
+
+* [x] Like / unlike media toggles
+* [x] List media likes count and users
+* [x] Post comment under media item
+* [x] List and delete comments
+* [x] Save / unsave to favourites (bookmarks)
+* [x] List personal favourite media items
+
+### Notifications (Phase 8)
+
+* [x] WebSocket integration with socket.io
+* [x] Real-time activity alerts broadcast on like, comment, etc.
+* [x] List all notifications
+* [x] Mark individual or all notifications as read
+
+### Search & Discovery (Phase 9)
+
+* [x] Full-text database wildcard search on events
+* [x] Filters by category, club, uploader, date range, tags
+
+### Cloud Features (Phase 11)
+
+* [x] AWS S3 file upload integration with automatic static local folder fallback
 
 ---
 
@@ -153,51 +192,21 @@ packages/
 
 ### Immediate Next Steps
 
-1. Implement media uploads.
-2. Implement event albums.
-3. Implement media previews.
-4. Implement bulk uploads.
-5. Implement access control.
-
-### Event Management
-
-* Event creation
-* Event editing
-* Event deletion
-* Event metadata
-* Event visibility
-
-### Media Management
-
-* Media uploads
-* Event albums
-* Media previews
-* Bulk uploads
-
-### Social Features
-
-* Likes
-* Comments
-* Shares
-* Favourites
-* User tagging
-
-### Notifications
-
-* Real-time notifications
-* WebSocket integration
+1. Implement smart image tagging using auto-generated tags (AI).
+2. Implement facial recognition and reference selfies (AI).
+3. Implement dynamic and event-based watermarking.
 
 ### AI Features
 
 * Smart image tagging
 * Facial recognition
 * Personalized gallery
-* Advanced search
+* Advanced search improvements
 
 ### Cloud Features
 
-* AWS S3 integration
-* Media delivery optimization
+* AWS S3 integration (Completed)
+* Media delivery optimization & CDN support
 
 ---
 
@@ -217,6 +226,6 @@ packages/
 
 ## Last Updated
 
-Phase 4 completed.
+Phase 9 completed.
 
-Current task: Media Management.
+Current task: Future Phase 10 - AI Features.

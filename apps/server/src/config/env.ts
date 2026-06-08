@@ -21,4 +21,8 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? "30d",
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
+  awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "",
+  awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
+  awsRegion: process.env.AWS_REGION ?? "us-east-1",
+  awsS3BucketName: process.env.AWS_S3_BUCKET_NAME ?? "",
 } as const;

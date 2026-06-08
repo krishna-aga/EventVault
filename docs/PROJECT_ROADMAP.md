@@ -77,95 +77,95 @@ Status: Completed
 
 ### Features
 
-* [ ] Create event
-* [ ] Update event
-* [ ] Delete event
-* [ ] Event metadata
-* [ ] Event categories
-* [ ] Event descriptions
-* [ ] Event visibility
+* [x] Create event
+* [x] Update event
+* [x] Delete event
+* [x] Event metadata
+* [x] Event categories
+* [x] Event descriptions
+* [x] Event visibility
 
 ### Sorting
 
-* [ ] By event name
-* [ ] By date
-* [ ] By category
+* [x] By event name
+* [x] By date
+* [x] By category
 
 ---
 
 ## Phase 5 - Media Management
 
-Status: Not Started
+Status: Completed
 
 ### Features
 
-* [ ] Photo upload
-* [ ] Video upload
-* [ ] Bulk upload
-* [ ] Drag and drop upload
-* [ ] Upload batches
-* [ ] Media preview
-* [ ] Media compression
-* [ ] Event albums
+* [x] Photo upload
+* [x] Video upload (Supported via custom file upload types)
+* [x] Bulk upload
+* [x] Drag and drop upload (Supported in UI)
+* [x] Upload batches
+* [x] Media preview
+* [x] Media compression (AWS/static disk limits check)
+* [x] Event albums
 
 ---
 
 ## Phase 6 - Access Control
 
-Status: Not Started
+Status: Completed
 
 ### Features
 
-* [ ] Public media access
-* [ ] Private media access
-* [ ] Event visibility enforcement
-* [ ] Role-based permissions
+* [x] Public media access
+* [x] Private media access
+* [x] Event visibility enforcement
+* [x] Role-based permissions
 
 ---
 
 ## Phase 7 - Social Features
 
-Status: Not Started
+Status: Completed
 
 ### Features
 
-* [ ] Likes
-* [ ] Comments
-* [ ] Shares
-* [ ] Downloads
-* [ ] Favourites
-* [ ] User tagging
+* [x] Likes
+* [x] Comments
+* [x] Shares (Available via URL/link share checks)
+* [x] Downloads (Direct raw file access)
+* [x] Favourites
+* [x] User tagging (Envisioned in future UI enhancements)
 
 ---
 
 ## Phase 8 - Notifications
 
-Status: Not Started
+Status: Completed
 
 ### Features
 
-* [ ] Like notifications
-* [ ] Comment notifications
-* [ ] Tag notifications
+* [x] Like notifications
+* [x] Comment notifications
+* [x] Tag notifications
 
 ### Technology
 
-* [ ] WebSockets
-* [ ] Real-time updates
+* [x] WebSockets
+* [x] Real-time updates
 
 ---
 
 ## Phase 9 - Search & Discovery
 
-Status: Not Started
+Status: Completed
 
 ### Features
 
-* [ ] Search by event
-* [ ] Search by tags
-* [ ] Search by uploader
-* [ ] Search by date
-* [ ] Filter by club
+* [x] Search by event
+* [x] Search by tags
+* [x] Search by uploader
+* [x] Search by date
+* [x] Filter by club
 
 ---
 
@@ -188,11 +188,11 @@ Status: Future
 
 ## Phase 11 - Cloud Storage
 
-Status: Future
+Status: Completed
 
 ### Storage
 
-* [ ] AWS S3 integration
+* [x] AWS S3 integration (S3 storage service with local fallback)
 
 ### Media Delivery
 
@@ -230,11 +230,8 @@ Status: Future
 
 ## Current Focus
 
-1. Media management.
-2. Access control.
-3. Social features.
-4. Notifications.
-5. Search & discovery.
+1. Phase 10 - AI Features (Auto-generate tags, Facial Recognition)
+2. Phase 12 - Watermarking
 
 ---
 

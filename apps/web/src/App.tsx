@@ -8,11 +8,15 @@ import type {
   EventSummary,
   EventVisibility,
   UserSummary,
+  MediaSummary,
+  CommentSummary,
+  NotificationSummary,
+  SearchFilters,
 } from "@repo/contracts";
 import { api, type SessionTokens } from "./lib/api";
+import { io, type Socket } from "socket.io-client";
 import "./App.css";
 
-// Preset media choices for mock upload
 const PRESET_MEDIAS = [
   {
     id: "preset-concert",
@@ -40,7 +44,9 @@ const PRESET_MEDIAS = [
   },
 ];
 
-type ViewPage = "feed" | "clubs" | "upload" | "profile";
+const CATEGORIES = ["all", "Concert", "Sports", "Exhibition", "Meetup", "Social", "Other"];
+
+type ViewPage = "feed" | "clubs" | "upload" | "profile" | "notifications" | "search";
 
 type EventDraft = {
   title: string;
@@ -62,32 +68,11 @@ type ClubDraft = {
 type SessionForm = {
   email: string;
   password: Exclude<string, "">;
-  name?: string; // For Signup
-  role?: string;  // For Signup
+  name?: string;
+  role?: string;
 };
 
-// Mock Interface
-interface MockMediaItem {
-  id: string;
-  title: string;
-  fileUrl: string;
-  fileType: "photo" | "video";
-  uploadedAt: string;
-  uploadedById: string;
-  caption?: string;
-}
-
-interface MockCommentItem {
-  id: string;
-  userName: string;
-  text: string;
-  date: string;
-}
-
 const STORAGE_KEY = "eventvault.session";
-const LIKES_KEY = "eventvault.likes";
-const COMMENTS_KEY = "eventvault.comments";
-const MEDIA_KEY = "eventvault.media";
 
 const emptyDraft = (): EventDraft => ({
   title: "",
@@ -95,7 +80,7 @@ const emptyDraft = (): EventDraft => ({
   category: "",
   visibility: "PUBLIC",
   location: "",
-  eventDate: new Date(Date.now() + 86400000).toISOString().slice(0, 16), // Tomorrow
+  eventDate: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
   coverImage: "",
   clubId: "",
 });
@@ -140,83 +125,83 @@ const getInitialSession = (): SessionTokens | null => {
 };
 
 function App() {
-  // Navigation & View States
+  // Navigation
   const [view, setView] = useState<ViewPage>("feed");
   const [activeAuthTab, setActiveAuthTab] = useState<"signin" | "signup">("signin");
-  
-  // Real DB Data States
-  const [events, setEvents] = useState<EventSummary[]>([]);
-  const [clubs, setClubs] = useState<ClubSummary[]>([]);
+
+  // Core Authentication States
   const [currentUser, setCurrentUser] = useState<UserSummary | null>(null);
   const [session, setSession] = useState<SessionTokens | null>(getInitialSession);
   
-  // Forms & Modals
+  // Real DB Data Lists
+  const [events, setEvents] = useState<EventSummary[]>([]);
+  const [clubs, setClubs] = useState<ClubSummary[]>([]);
+  
+  // Media & Social State per ID
+  const [eventMedia, setEventMedia] = useState<Record<string, MediaSummary[]>>({});
+  const [activeMediaCarouselIndex, setActiveMediaCarouselIndex] = useState<Record<string, number>>({});
+  const [mediaLikes, setMediaLikes] = useState<Record<string, { count: number; users: UserSummary[] }>>({});
+  const [mediaComments, setMediaComments] = useState<Record<string, CommentSummary[]>>({});
+  const [mediaFavourites, setMediaFavourites] = useState<string[]>([]); // list of favourited media IDs
+
+  // Notifications State
+  const [notifications, setNotifications] = useState<NotificationSummary[]>([]);
+
+  // Forms
   const [sessionForm, setSessionForm] = useState<SessionForm>({
     email: "",
     password: "",
     name: "",
     role: "VIEWER",
   });
-  
   const [eventDraft, setEventDraft] = useState<EventDraft>(emptyDraft);
   const [clubDraft, setClubDraft] = useState<ClubDraft>(emptyClubDraft);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  
+
   // Modals Toggles
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isClubModalOpen, setIsClubModalOpen] = useState(false);
-  
-  // Event Filtering/Sorting States
+
+  // Event Filters
   const [sortBy, setSortBy] = useState<EventSortBy>("eventDate");
   const [sortOrder, setSortOrder] = useState<EventSortOrder>("desc");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [clubFilter, setClubFilter] = useState("all");
   const [visibilityFilter, setVisibilityFilter] = useState<"all" | EventVisibility>("all");
-  
-  // Toast & Global Status
-  const [toast, setToast] = useState<{ message: string; type: "ok" | "warn" } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [working, setWorking] = useState(false);
-  const [error, setError] = useState("");
 
-  // Explore Club Detail States
+  // Search View State
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    q: "",
+    category: "",
+    clubId: "",
+    startDate: "",
+    endDate: "",
+  });
+  const [searchResults, setSearchResults] = useState<EventSummary[]>([]);
+
+  const userEvents = currentUser ? events.filter((evt) => evt.createdById === currentUser.id) : [];
+
+  // Explore Club Drawer States
   const [expandedClubId, setExpandedClubId] = useState<string | null>(null);
   const [clubTab, setClubTab] = useState<"members" | "requests" | "events">("members");
   const [clubMembersMap, setClubMembersMap] = useState<Record<string, any[]>>({});
   const [clubRequestsMap, setClubRequestsMap] = useState<Record<string, any[]>>({});
 
-  // Mock Feed/Social System States
-  const [likes, setLikes] = useState<Record<string, string[]>>({}); // eventId -> userIds
-  const [comments, setComments] = useState<Record<string, MockCommentItem[]>>({}); // eventId -> comment objects
-  const [media, setMedia] = useState<Record<string, MockMediaItem[]>>({}); // eventId -> media items
-  const [activeMediaCarouselIndex, setActiveMediaCarouselIndex] = useState<Record<string, number>>({});
-  
-  // Upload Media States
+  // Real Upload States
   const [uploadSelectedEventId, setUploadSelectedEventId] = useState("");
-  const [uploadMediaSource, setUploadMediaSource] = useState<"preset" | "url">("preset");
+  const [uploadMediaSource, setUploadMediaSource] = useState<"local" | "preset">("local");
   const [uploadPresetId, setUploadPresetId] = useState(PRESET_MEDIAS[0].id);
-  const [uploadMediaUrl, setUploadMediaUrl] = useState("");
-  const [uploadCaption, setUploadCaption] = useState("");
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [uploadTitle, setUploadTitle] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Load mocks from localStorage on mount
-  useEffect(() => {
-    try {
-      const storedLikes = localStorage.getItem(LIKES_KEY);
-      if (storedLikes) setLikes(JSON.parse(storedLikes));
-      
-      const storedComments = localStorage.getItem(COMMENTS_KEY);
-      if (storedComments) setComments(JSON.parse(storedComments));
-      
-      const storedMedia = localStorage.getItem(MEDIA_KEY);
-      if (storedMedia) setMedia(JSON.parse(storedMedia));
-    } catch (err) {
-      console.error("Failed to parse social mocks", err);
-    }
-  }, []);
+  // Toast Notifier
+  const [toast, setToast] = useState<{ message: string; type: "ok" | "warn" } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState("");
 
-  // Helper to show a Toast message
   const triggerToast = (message: string, type: "ok" | "warn" = "ok") => {
     setToast({ message, type });
   };
@@ -228,32 +213,53 @@ function App() {
     }
   }, [toast]);
 
-  // Sync token pair with localStorage and fetch current user profile
+  // Sync token pair and fetch user profile
   useEffect(() => {
     if (!session) {
       setCurrentUser(null);
       window.localStorage.removeItem(STORAGE_KEY);
       return;
     }
-
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 
     const syncSession = async () => {
       try {
         const payload = await api.me(session.accessToken);
         setCurrentUser(payload.user);
-        triggerToast(`Signed in as ${payload.user.name}`, "ok");
       } catch (err) {
         setCurrentUser(null);
         setSession(null);
         triggerToast("Session expired, please sign in again.", "warn");
       }
     };
-
     void syncSession();
   }, [session]);
 
-  // API loading for events/clubs
+  // WebSockets Real-Time Notifications Connection
+  useEffect(() => {
+    if (!currentUser || !session) return;
+
+    const socketUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api")
+      .replace("/api", "");
+
+    const socket: Socket = io(socketUrl);
+
+    socket.on("connect", () => {
+      socket.emit("register", currentUser.id);
+    });
+
+    socket.on("notification", (notif: NotificationSummary) => {
+      triggerToast(`Real-Time Notification: ${notif.message}`, "ok");
+      // Prepend to notifications list
+      setNotifications((prev) => [notif, ...prev]);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [currentUser, session]);
+
+  // Load Main Feed & Dashboard Data
   const loadData = async () => {
     setLoading(true);
     setError("");
@@ -274,9 +280,33 @@ function App() {
 
       setEvents(eventPayload.events);
       setClubs(clubPayload.clubs);
+
+      if (session) {
+        // Load S3 media and metadata for events
+        const mediaMap: Record<string, MediaSummary[]> = {};
+        await Promise.all(
+          eventPayload.events.map(async (evt) => {
+            try {
+              const res = await api.listMedia(evt.id, session.accessToken);
+              mediaMap[evt.id] = res.media;
+            } catch {
+              mediaMap[evt.id] = [];
+            }
+          })
+        );
+        setEventMedia(mediaMap);
+
+        // Fetch notifications & favourites list
+        const [notifRes, favsRes] = await Promise.all([
+          api.listNotifications(session.accessToken),
+          api.listFavourites(session.accessToken),
+        ]);
+        setNotifications(notifRes.notifications);
+        setMediaFavourites(favsRes.favourites.map((f) => f.mediaId));
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to reconnect with backend API");
-      triggerToast("Failed to fetch fresh data from backend.", "warn");
+      setError(err instanceof Error ? err.message : "Failed to load database files");
+      triggerToast("Error connecting to server database", "warn");
     } finally {
       setLoading(false);
     }
@@ -284,22 +314,35 @@ function App() {
 
   useEffect(() => {
     void loadData();
-  }, [sortBy, sortOrder, categoryFilter, clubFilter, visibilityFilter]);
+  }, [sortBy, sortOrder, categoryFilter, clubFilter, visibilityFilter, session]);
 
-  // Load details for expanded club
+  // Fetch comments and likes details for a specific media item
+  const fetchMediaDetails = async (mediaId: string) => {
+    if (mediaLikes[mediaId] && mediaComments[mediaId]) return;
+    try {
+      const [likesPayload, commentsPayload] = await Promise.all([
+        api.listLikes(mediaId),
+        api.listComments(mediaId),
+      ]);
+      setMediaLikes((prev) => ({ ...prev, [mediaId]: likesPayload }));
+      setMediaComments((prev) => ({ ...prev, [mediaId]: commentsPayload.comments }));
+    } catch (err) {
+      console.error("Failed to load details for media:", mediaId, err);
+    }
+  };
+
+  // Load expanded club members/requests
   const loadClubDetails = async (clubId: string) => {
     try {
-      const [membersPayload] = await Promise.all([
-        api.listClubMembers(clubId),
-      ]);
-      setClubMembersMap(prev => ({ ...prev, [clubId]: membersPayload.members }));
+      const membersPayload = await api.listClubMembers(clubId);
+      setClubMembersMap((prev) => ({ ...prev, [clubId]: membersPayload.members }));
 
       if (session) {
         const requestsPayload = await api.listJoinRequests(clubId, session.accessToken);
-        setClubRequestsMap(prev => ({ ...prev, [clubId]: requestsPayload.requests }));
+        setClubRequestsMap((prev) => ({ ...prev, [clubId]: requestsPayload.requests }));
       }
     } catch (err) {
-      console.warn("Failed to load full club lists (might not have access rights)", err);
+      console.warn("Failed to load club details:", err);
     }
   };
 
@@ -307,15 +350,42 @@ function App() {
     if (expandedClubId) {
       void loadClubDetails(expandedClubId);
     }
-  }, [expandedClubId, session]);
+  }, [expandedClubId]);
 
-  // Auth Handler: Login
-  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!sessionForm.email || !sessionForm.password) {
-      triggerToast("Email and password are required.", "warn");
-      return;
+  // Trigger search query
+  const triggerSearch = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    setLoading(true);
+    try {
+      const payload = await api.search(searchFilters);
+      setSearchResults(payload.events);
+      if (session) {
+        const mediaMap = { ...eventMedia };
+        await Promise.all(
+          payload.events.map(async (evt) => {
+            if (!mediaMap[evt.id]) {
+              try {
+                const res = await api.listMedia(evt.id, session.accessToken);
+                mediaMap[evt.id] = res.media;
+              } catch {
+                mediaMap[evt.id] = [];
+              }
+            }
+          })
+        );
+        setEventMedia(mediaMap);
+      }
+      setView("search");
+    } catch (err) {
+      triggerToast("Search failed", "warn");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  // Authentication logic
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault();
     setWorking(true);
     try {
       const payload = await api.login(sessionForm.email, sessionForm.password);
@@ -324,65 +394,53 @@ function App() {
       setSessionForm({ email: "", password: "", name: "", role: "VIEWER" });
       setView("feed");
     } catch (err) {
-      triggerToast(err instanceof Error ? err.message : "Login failed", "warn");
+      triggerToast(err instanceof Error ? err.message : "Authentication error", "warn");
     } finally {
       setWorking(false);
     }
   };
 
-  // Auth Handler: Signup
-  const handleSignup = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSignup = async (e: FormEvent) => {
     e.preventDefault();
-    if (!sessionForm.name || !sessionForm.email || !sessionForm.password) {
-      triggerToast("Name, email and password are required.", "warn");
-      return;
-    }
     setWorking(true);
     try {
       const payload = await api.register(
-        sessionForm.name,
+        sessionForm.name || "User",
         sessionForm.email,
         sessionForm.password,
-        sessionForm.role || "VIEWER"
+        sessionForm.role || "VIEWER",
       );
       setSession(payload.tokens);
       setCurrentUser(payload.user);
       setSessionForm({ email: "", password: "", name: "", role: "VIEWER" });
       setView("feed");
     } catch (err) {
-      triggerToast(err instanceof Error ? err.message : "Registration failed", "warn");
+      triggerToast(err instanceof Error ? err.message : "Signup failed", "warn");
     } finally {
       setWorking(false);
     }
   };
 
-  // Auth Handler: Logout
   const handleLogout = () => {
     setSession(null);
     setCurrentUser(null);
-    triggerToast("Signed out successfully", "ok");
+    setView("feed");
+    triggerToast("Logged out successfully");
   };
 
-  // Event Handler: Create/Update
-  const handleSaveEvent = async (e: FormEvent<HTMLFormElement>) => {
+  // Event Save CRUD
+  const handleSaveEvent = async (e: FormEvent) => {
     e.preventDefault();
-    if (!session) {
-      triggerToast("You must be signed in to manage events.", "warn");
-      return;
-    }
-    if (!eventDraft.title || !eventDraft.category || !eventDraft.eventDate) {
-      triggerToast("Title, category, and date are required.", "warn");
-      return;
-    }
+    if (!session) return;
     setWorking(true);
     try {
       const payload = toPayload(eventDraft);
       if (selectedEventId) {
         await api.updateEvent(selectedEventId, payload, session.accessToken);
-        triggerToast("Event updated successfully!");
+        triggerToast("Event successfully updated!");
       } else {
         await api.createEvent(payload, session.accessToken);
-        triggerToast("Event created successfully!");
+        triggerToast("Event successfully scheduled!");
       }
       setIsEventModalOpen(false);
       setSelectedEventId(null);
@@ -395,199 +453,227 @@ function App() {
     }
   };
 
-  // Event Handler: Delete
   const handleDeleteEvent = async (eventId: string) => {
-    if (!session) return;
-    if (!window.confirm("Are you sure you want to delete this event?")) return;
+    if (!session || !window.confirm("Are you sure you want to delete this event?")) return;
     setWorking(true);
     try {
       await api.deleteEvent(eventId, session.accessToken);
-      triggerToast("Event removed successfully.");
+      triggerToast("Event successfully deleted.");
       setIsEventModalOpen(false);
       setSelectedEventId(null);
-      setEventDraft(emptyDraft());
       await loadData();
     } catch (err) {
-      triggerToast(err instanceof Error ? err.message : "Could not delete event", "warn");
+      triggerToast(err instanceof Error ? err.message : "Delete failed", "warn");
     } finally {
       setWorking(false);
     }
   };
 
-  // Club Handler: Create
-  const handleCreateClub = async (e: FormEvent<HTMLFormElement>) => {
+  // Club save/management
+  const handleCreateClub = async (e: FormEvent) => {
     e.preventDefault();
     if (!session) return;
-    if (!clubDraft.name) {
-      triggerToast("Club name is required.", "warn");
-      return;
-    }
     setWorking(true);
     try {
-      await api.createClub(
-        {
-          name: clubDraft.name.trim(),
-          description: clubDraft.description.trim() || undefined,
-          logoUrl: clubDraft.logoUrl.trim() || undefined,
-        },
-        session.accessToken
-      );
-      triggerToast("Club created successfully!");
+      await api.createClub(clubDraft, session.accessToken);
+      triggerToast("Club successfully formed!");
       setIsClubModalOpen(false);
       setClubDraft(emptyClubDraft());
       await loadData();
     } catch (err) {
-      triggerToast(err instanceof Error ? err.message : "Failed to create club", "warn");
+      triggerToast(err instanceof Error ? err.message : "Forming club failed", "warn");
     } finally {
       setWorking(false);
     }
   };
 
-  // Club Handler: Join/Leave
-  const handleToggleJoinClub = async (clubId: string, isJoined: boolean) => {
-    if (!session) {
-      triggerToast("Please log in to join clubs.", "warn");
-      return;
-    }
-    try {
-      if (isJoined) {
-        await api.leaveClub(clubId, session.accessToken);
-        triggerToast("Left the club.");
-      } else {
-        await api.joinClub(clubId, session.accessToken);
-        triggerToast("Join request sent!");
-      }
-      await loadClubDetails(clubId);
-      await loadData();
-    } catch (err) {
-      triggerToast(err instanceof Error ? err.message : "Failed operation", "warn");
-    }
-  };
-
-  // Club Handler: Review Request
-  const handleReviewJoinRequest = async (clubId: string, requestId: string, approve: boolean) => {
+  const handleToggleJoinClub = async (clubId: string, isMember: boolean) => {
     if (!session) return;
     try {
-      await api.reviewJoinRequest(
-        clubId,
-        requestId,
-        approve ? "APPROVED" : "REJECTED",
-        session.accessToken
-      );
-      triggerToast(approve ? "Request approved" : "Request rejected");
+      if (isMember) {
+        await api.leaveClub(clubId, session.accessToken);
+        triggerToast("Left club");
+      } else {
+        await api.joinClub(clubId, session.accessToken);
+        triggerToast("Requested to join club");
+      }
       await loadClubDetails(clubId);
       await loadData();
     } catch (err) {
-      triggerToast(err instanceof Error ? err.message : "Review request failed", "warn");
+      triggerToast("Membership request failed", "warn");
     }
   };
 
-  // Mock Upload Handler
-  const handleUploadMedia = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!session || !currentUser) return;
-    if (!uploadSelectedEventId) {
-      triggerToast("Select an event to upload to", "warn");
-      return;
+  const handleReviewJoinRequest = async (clubId: string, reqId: string, approve: boolean) => {
+    if (!session) return;
+    try {
+      await api.reviewJoinRequest(clubId, reqId, approve ? "APPROVED" : "REJECTED", session.accessToken);
+      triggerToast(approve ? "Request approved" : "Request rejected");
+      await loadClubDetails(clubId);
+    } catch (err) {
+      triggerToast("Action failed", "warn");
     }
+  };
 
-    let fileUrl = "";
-    if (uploadMediaSource === "preset") {
-      const preset = PRESET_MEDIAS.find(p => p.id === uploadPresetId);
-      fileUrl = preset ? preset.url : PRESET_MEDIAS[0].url;
-    } else {
-      if (!uploadMediaUrl) {
-        triggerToast("Please enter an image URL", "warn");
-        return;
-      }
-      fileUrl = uploadMediaUrl;
+  // S3 / Backend File Upload handler
+  const handleUploadMedia = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!session) return;
+    if (!uploadSelectedEventId) {
+      triggerToast("Please select an event target", "warn");
+      return;
     }
 
     setIsUploading(true);
-    setUploadProgress(10);
+    setUploadProgress(20);
 
-    // Simulate progress upload
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          
-          // Complete upload logic
-          const newMedia: MockMediaItem = {
-            id: `media-${Date.now()}`,
-            title: uploadCaption ? uploadCaption.substring(0, 30) : "Media Post",
-            fileUrl,
-            fileType: "photo",
-            uploadedAt: new Date().toISOString(),
-            uploadedById: currentUser.id,
-            caption: uploadCaption,
-          };
+    try {
+      let filesToUpload: File[] = [];
 
-          const existingMedia = { ...media };
-          if (!existingMedia[uploadSelectedEventId]) {
-            existingMedia[uploadSelectedEventId] = [];
-          }
-          existingMedia[uploadSelectedEventId] = [newMedia, ...existingMedia[uploadSelectedEventId]];
-
-          setMedia(existingMedia);
-          localStorage.setItem(MEDIA_KEY, JSON.stringify(existingMedia));
-          
-          setIsUploading(false);
-          setUploadProgress(0);
-          setUploadCaption("");
-          setUploadMediaUrl("");
-          triggerToast("Media uploaded successfully under event!", "ok");
-          setView("feed");
-          return 0;
+      if (uploadMediaSource === "local") {
+        if (uploadFiles.length === 0) {
+          throw new Error("Select files to upload");
         }
-        return prev + 15;
-      });
-    }, 150);
-  };
+        filesToUpload = uploadFiles;
+      } else {
+        // Convert Preset URL to File Blob
+        const preset = PRESET_MEDIAS.find((p) => p.id === uploadPresetId);
+        if (!preset) throw new Error("Preset invalid");
+        setUploadProgress(40);
+        const response = await fetch(preset.url);
+        const blob = await response.blob();
+        const file = new File([blob], `${preset.id}.jpg`, { type: "image/jpeg" });
+        filesToUpload = [file];
+      }
 
-  // Social: Toggle Like
-  const handleLikeEvent = (eventId: string) => {
-    if (!currentUser) {
-      triggerToast("Sign in to like posts", "warn");
-      return;
+      setUploadProgress(70);
+      const results = await api.uploadMedia(
+        uploadSelectedEventId,
+        filesToUpload,
+        uploadTitle || undefined,
+        session.accessToken,
+      );
+
+      setUploadProgress(100);
+      triggerToast(`Successfully uploaded ${results.length} media file(s)!`);
+      
+      // Update state local mapping
+      setEventMedia((prev) => ({
+        ...prev,
+        [uploadSelectedEventId]: [...results, ...(prev[uploadSelectedEventId] || [])],
+      }));
+
+      // Cleanup uploader state
+      setUploadFiles([]);
+      setUploadTitle("");
+      setView("feed");
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : "File upload failed", "warn");
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
     }
-    const currentLikes = { ...likes };
-    const list = currentLikes[eventId] || [];
-    const index = list.indexOf(currentUser.id);
-    if (index > -1) {
-      list.splice(index, 1);
-    } else {
-      list.push(currentUser.id);
+  };
+
+  // Social Toggle Handlers
+  const handleLikeMedia = async (mediaId: string) => {
+    if (!session) return;
+    try {
+      const res = await api.toggleLike(mediaId, session.accessToken);
+      const likesPayload = await api.listLikes(mediaId);
+      setMediaLikes((prev) => ({ ...prev, [mediaId]: likesPayload }));
+      triggerToast(res.liked ? "Liked photo" : "Unliked photo");
+    } catch (err) {
+      triggerToast("Toggle like failed", "warn");
     }
-    currentLikes[eventId] = list;
-    setLikes(currentLikes);
-    localStorage.setItem(LIKES_KEY, JSON.stringify(currentLikes));
   };
 
-  // Social: Submit Comment
-  const handleAddComment = (eventId: string, text: string) => {
-    if (!currentUser) return;
-    if (!text.trim()) return;
-
-    const currentComments = { ...comments };
-    const newComment: MockCommentItem = {
-      id: `comment-${Date.now()}`,
-      userName: currentUser.name,
-      text: text.trim(),
-      date: new Date().toISOString(),
-    };
-
-    currentComments[eventId] = [...(currentComments[eventId] || []), newComment];
-    setComments(currentComments);
-    localStorage.setItem(COMMENTS_KEY, JSON.stringify(currentComments));
+  const handleFavouriteMedia = async (mediaId: string) => {
+    if (!session) return;
+    try {
+      const res = await api.toggleFavourite(mediaId, session.accessToken);
+      if (res.favourited) {
+        setMediaFavourites((prev) => [...prev, mediaId]);
+        triggerToast("Saved to Favourites");
+      } else {
+        setMediaFavourites((prev) => prev.filter((id) => id !== mediaId));
+        triggerToast("Removed from Favourites");
+      }
+    } catch (err) {
+      triggerToast("Favourite action failed", "warn");
+    }
   };
 
-  // Render variables
-  const categories = ["all", ...new Set(events.map((event) => event.category))];
-  const userEvents = events.filter((e) => currentUser && e.createdById === currentUser.id);
+  const handleCommentMedia = async (mediaId: string, text: string) => {
+    if (!session) return;
+    try {
+      const comm = await api.addComment(mediaId, text, session.accessToken);
+      setMediaComments((prev) => ({
+        ...prev,
+        [mediaId]: [...(prev[mediaId] || []), comm],
+      }));
+      triggerToast("Comment posted!");
+    } catch (err) {
+      triggerToast("Posting comment failed", "warn");
+    }
+  };
 
-  // SVG Helper components
+  const handleDeleteMedia = async (mediaId: string, eventId: string) => {
+    if (!session || !window.confirm("Are you sure you want to delete this media item?")) return;
+    try {
+      await api.deleteMedia(mediaId, session.accessToken);
+      setEventMedia((prev) => ({
+        ...prev,
+        [eventId]: (prev[eventId] || []).filter((m) => m.id !== mediaId),
+      }));
+      triggerToast("Media deleted.");
+    } catch (err) {
+      triggerToast("Delete failed", "warn");
+    }
+  };
+
+  // Notification reads
+  const handleReadNotification = async (notifId: string) => {
+    if (!session) return;
+    try {
+      await api.readNotification(notifId, session.accessToken);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n)),
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleReadAllNotifications = async () => {
+    if (!session) return;
+    try {
+      await api.readAllNotifications(session.accessToken);
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      triggerToast("All notifications marked as read");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const formatDate = (val: string) => {
+    try {
+      return new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+      }).format(new Date(val));
+    } catch {
+      return val;
+    }
+  };
+
   const Icon = {
+    Briefcase: () => (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      </svg>
+    ),
     Home: () => (
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -616,6 +702,16 @@ function App() {
     Comment: () => (
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      </svg>
+    ),
+    Bell: () => (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+      </svg>
+    ),
+    Search: () => (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
     ),
     Calendar: () => (
@@ -654,11 +750,6 @@ function App() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
       </svg>
     ),
-    Unlock: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-      </svg>
-    ),
     Logout: () => (
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -674,9 +765,9 @@ function App() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
       </svg>
     ),
-    Briefcase: () => (
+    Bookmark: () => (
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
       </svg>
     ),
     Compass: () => (
@@ -687,20 +778,16 @@ function App() {
     ),
   };
 
-  // Helper date formatter
-  const formatDate = (val: string) => {
-    try {
-      return new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "2-digit",
-        year: "numeric",
-      }).format(new Date(val));
-    } catch {
-      return val;
+  const getMediaSourceUrl = (pathUrl: string) => {
+    if (pathUrl.startsWith("http://") || pathUrl.startsWith("https://")) {
+      return pathUrl;
     }
+    const apiHost = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api")
+      .replace("/api", "");
+    return `${apiHost}${pathUrl}`;
   };
 
-  // 1. AUTH GATE: If no user is authenticated, render ONLY the login / signup interface
+  // Auth Guard
   if (!currentUser) {
     return (
       <div className="auth-gate">
@@ -711,7 +798,7 @@ function App() {
             <p>Connect and share your club events & media</p>
           </header>
 
-          <nav className="auth-tabs" aria-label="Authentication tabs">
+          <nav className="auth-tabs" aria-label="Auth forms toggle">
             <button
               id="signin-tab-btn"
               type="button"
@@ -740,7 +827,7 @@ function App() {
                   className="form-input"
                   placeholder="name@example.com"
                   value={sessionForm.email}
-                  onChange={(e) => setSessionForm(prev => ({ ...prev, email: e.target.value }))}
+                  onChange={(e) => setSessionForm((prev) => ({ ...prev, email: e.target.value }))}
                   required
                 />
               </div>
@@ -752,16 +839,11 @@ function App() {
                   className="form-input"
                   placeholder="••••••••"
                   value={sessionForm.password}
-                  onChange={(e) => setSessionForm(prev => ({ ...prev, password: e.target.value as Exclude<string, ""> }))}
+                  onChange={(e) => setSessionForm((prev) => ({ ...prev, password: e.target.value as Exclude<string, ""> }))}
                   required
                 />
               </div>
-              <button
-                id="signin-submit-btn"
-                type="submit"
-                className="form-submit-btn"
-                disabled={working}
-              >
+              <button id="signin-submit-btn" type="submit" className="form-submit-btn" disabled={working}>
                 {working ? "Connecting..." : "Sign In"}
               </button>
             </form>
@@ -775,7 +857,7 @@ function App() {
                   className="form-input"
                   placeholder="Aarav Sharma"
                   value={sessionForm.name || ""}
-                  onChange={(e) => setSessionForm(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => setSessionForm((prev) => ({ ...prev, name: e.target.value }))}
                   required
                 />
               </div>
@@ -787,7 +869,7 @@ function App() {
                   className="form-input"
                   placeholder="name@example.com"
                   value={sessionForm.email}
-                  onChange={(e) => setSessionForm(prev => ({ ...prev, email: e.target.value }))}
+                  onChange={(e) => setSessionForm((prev) => ({ ...prev, email: e.target.value }))}
                   required
                 />
               </div>
@@ -799,7 +881,7 @@ function App() {
                   className="form-input"
                   placeholder="At least 8 characters"
                   value={sessionForm.password}
-                  onChange={(e) => setSessionForm(prev => ({ ...prev, password: e.target.value as Exclude<string, ""> }))}
+                  onChange={(e) => setSessionForm((prev) => ({ ...prev, password: e.target.value as Exclude<string, ""> }))}
                   required
                 />
               </div>
@@ -809,19 +891,14 @@ function App() {
                   id="signup-role"
                   className="form-select"
                   value={sessionForm.role || "VIEWER"}
-                  onChange={(e) => setSessionForm(prev => ({ ...prev, role: e.target.value }))}
+                  onChange={(e) => setSessionForm((prev) => ({ ...prev, role: e.target.value }))}
                 >
                   <option value="VIEWER">Viewer (Read-only)</option>
                   <option value="CLUB_MEMBER">Club Member</option>
                   <option value="PHOTOGRAPHER">Photographer</option>
                 </select>
               </div>
-              <button
-                id="signup-submit-btn"
-                type="submit"
-                className="form-submit-btn"
-                disabled={working}
-              >
+              <button id="signup-submit-btn" type="submit" className="form-submit-btn" disabled={working}>
                 {working ? "Creating Account..." : "Create Account"}
               </button>
             </form>
@@ -838,11 +915,221 @@ function App() {
     );
   }
 
-  // 2. MAIN APPLICATION SHELL
+  const unreadNotifications = notifications.filter((n) => !n.isRead).length;
+
+  // Render events helper
+  const renderEventList = (eventsToRender: EventSummary[]) => {
+    return (
+      <div className="feed-stream">
+        {eventsToRender.map((evt) => {
+          const list = eventMedia[evt.id] || [];
+          const activeIndex = activeMediaCarouselIndex[evt.id] || 0;
+          const activeMedia = list[activeIndex];
+
+          // Prefetch details
+          if (activeMedia) {
+            void fetchMediaDetails(activeMedia.id);
+          }
+
+          const currentLike = activeMedia ? mediaLikes[activeMedia.id] : null;
+          const currentComments = activeMedia ? mediaComments[activeMedia.id] : [];
+          const isLiked = activeMedia ? (currentLike?.users.some((u) => u.id === currentUser.id) || false) : false;
+          const likeCount = activeMedia ? (currentLike?.count || 0) : 0;
+          const isFav = activeMedia ? mediaFavourites.includes(activeMedia.id) : false;
+
+          return (
+            <article key={evt.id} className="post-card">
+              {/* Header */}
+              <header className="post-header">
+                <div className="post-author">
+                  <div className="post-author-avatar">
+                    {evt.creator?.name ? evt.creator.name.charAt(0).toUpperCase() : "?"}
+                  </div>
+                  <div className="post-author-info">
+                    <span className="post-author-name">{evt.creator?.name || "Organizer"}</span>
+                    <div className="post-meta-details">
+                      <span>{formatDate(evt.eventDate)}</span>
+                      <span>•</span>
+                      <span>{evt.club?.name || "Standalone"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <span className="post-category-tag">{evt.category}</span>
+                  <span className={`post-visibility-badge ${evt.visibility.toLowerCase()}`}>
+                    {evt.visibility}
+                  </span>
+                </div>
+              </header>
+
+              {/* Slider */}
+              {list.length > 0 ? (
+                <div className="post-media-container">
+                  <img
+                    src={getMediaSourceUrl(list[activeIndex].fileUrl)}
+                    alt={list[activeIndex].title || "Event media"}
+                    className="post-media"
+                  />
+                  {list.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        className="carousel-btn prev"
+                        onClick={() => {
+                          setActiveMediaCarouselIndex((prev) => ({
+                            ...prev,
+                            [evt.id]: (activeIndex - 1 + list.length) % list.length,
+                          }));
+                        }}
+                      >
+                        <Icon.ChevronLeft />
+                      </button>
+                      <button
+                        type="button"
+                        className="carousel-btn next"
+                        onClick={() => {
+                          setActiveMediaCarouselIndex((prev) => ({
+                            ...prev,
+                            [evt.id]: (activeIndex + 1) % list.length,
+                          }));
+                        }}
+                      >
+                        <Icon.ChevronRight />
+                      </button>
+                      <div className="carousel-dots">
+                        {list.map((_, idx) => (
+                          <div
+                            key={idx}
+                            className={`carousel-dot ${activeIndex === idx ? "active" : ""}`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* Option to Delete media if user is creator/uploader */}
+                  {(activeMedia.uploadedById === currentUser.id || evt.createdById === currentUser.id) && (
+                    <button
+                      type="button"
+                      className="upload-preview-remove"
+                      onClick={() => void handleDeleteMedia(activeMedia.id, evt.id)}
+                      style={{ top: 12, right: 12 }}
+                      title="Delete this media"
+                    >
+                      <Icon.Trash />
+                    </button>
+                  )}
+                </div>
+              ) : evt.coverImage ? (
+                <div className="post-media-container">
+                  <img src={getMediaSourceUrl(evt.coverImage)} alt={evt.title} className="post-media" />
+                </div>
+              ) : (
+                <div className="post-media-container" style={{ display: "grid", placeItems: "center", background: "#111827" }}>
+                  <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No media uploaded yet</span>
+                </div>
+              )}
+
+              {/* Details & Actions */}
+              <section className="post-content">
+                <h3 className="post-title">{evt.title}</h3>
+                {evt.description && <p className="post-description">{evt.description}</p>}
+
+                <div className="post-info-row">
+                  {evt.location && (
+                    <div className="post-info-item">
+                      <Icon.MapPin />
+                      <span>{evt.location}</span>
+                    </div>
+                  )}
+                  <div className="post-info-item">
+                    <Icon.Calendar />
+                    <span>{formatDate(evt.eventDate)}</span>
+                  </div>
+                </div>
+
+                {activeMedia ? (
+                  <div className="post-actions">
+                    <button
+                      type="button"
+                      className={`post-action-btn ${isLiked ? "liked" : ""}`}
+                      onClick={() => void handleLikeMedia(activeMedia.id)}
+                    >
+                      <Icon.Heart />
+                      <span>{likeCount} Likes</span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      className={`post-action-btn ${isFav ? "liked" : ""}`}
+                      onClick={() => void handleFavouriteMedia(activeMedia.id)}
+                    >
+                      <Icon.Bookmark />
+                      <span>{isFav ? "Saved" : "Save"}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+                    Log in or attach media to unlock likes/comments
+                  </span>
+                )}
+              </section>
+
+              {/* Comments */}
+              {activeMedia && (
+                <section className="post-comments-section" aria-label="Media comments">
+                  <div className="comments-list">
+                    {(currentComments || []).map((c) => (
+                      <div key={c.id} className="comment-item">
+                        <div className="comment-avatar">
+                          {c.user?.name ? c.user.name.charAt(0).toUpperCase() : "?"}
+                        </div>
+                        <div className="comment-bubble">
+                          <span className="comment-author-name">{c.user?.name || "Member"}</span>
+                          <span className="comment-text">{c.content}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {(currentComments || []).length === 0 && (
+                      <p style={{ fontStyle: "italic", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                        No comments yet.
+                      </p>
+                    )}
+                  </div>
+                  <form
+                    className="comment-input-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const form = e.currentTarget;
+                      const input = form.elements.namedItem("commentText") as HTMLInputElement;
+                      if (input && input.value.trim()) {
+                        void handleCommentMedia(activeMedia.id, input.value.trim());
+                        input.value = "";
+                      }
+                    }}
+                  >
+                    <input
+                      name="commentText"
+                      type="text"
+                      placeholder="Add a comment..."
+                      className="comment-input"
+                      autoComplete="off"
+                    />
+                    <button type="submit" className="comment-submit-btn">Post</button>
+                  </form>
+                </section>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="app-shell">
-      {/* Sidebar navigation */}
-      <aside className="app-sidebar" aria-label="Main Navigation">
+      <aside className="app-sidebar" aria-label="Sidebar navigation">
         <div className="logo-container">
           <div className="logo-icon">
             <Icon.Briefcase />
@@ -850,9 +1137,8 @@ function App() {
           <span className="logo-text">EventVault</span>
         </div>
 
-        <nav className="nav-links" aria-label="Sidebar navigation links">
+        <nav className="nav-links">
           <button
-            id="nav-feed"
             type="button"
             className={`nav-item ${view === "feed" ? "active" : ""}`}
             onClick={() => setView("feed")}
@@ -860,8 +1146,20 @@ function App() {
             <Icon.Home />
             <span>Home Feed</span>
           </button>
+          
           <button
-            id="nav-clubs"
+            type="button"
+            className={`nav-item ${view === "search" ? "active" : ""}`}
+            onClick={() => {
+              setSearchResults([]);
+              setView("search");
+            }}
+          >
+            <Icon.Search />
+            <span>Search</span>
+          </button>
+
+          <button
             type="button"
             className={`nav-item ${view === "clubs" ? "active" : ""}`}
             onClick={() => setView("clubs")}
@@ -869,8 +1167,8 @@ function App() {
             <Icon.Clubs />
             <span>Explore Clubs</span>
           </button>
+          
           <button
-            id="nav-upload"
             type="button"
             className={`nav-item ${view === "upload" ? "active" : ""}`}
             onClick={() => setView("upload")}
@@ -878,8 +1176,29 @@ function App() {
             <Icon.Upload />
             <span>Upload Media</span>
           </button>
+          
           <button
-            id="nav-profile"
+            type="button"
+            className={`nav-item ${view === "notifications" ? "active" : ""}`}
+            onClick={() => setView("notifications")}
+            style={{ position: "relative" }}
+          >
+            <Icon.Bell />
+            <span>Notifications</span>
+            {unreadNotifications > 0 && (
+              <span className="badge badge--green" style={{
+                position: "absolute",
+                top: 8,
+                right: 12,
+                padding: "2px 6px",
+                fontSize: "0.65rem"
+              }}>
+                {unreadNotifications}
+              </span>
+            )}
+          </button>
+
+          <button
             type="button"
             className={`nav-item ${view === "profile" ? "active" : ""}`}
             onClick={() => setView("profile")}
@@ -898,66 +1217,55 @@ function App() {
             <span className="sidebar-user-role">{currentUser.role}</span>
           </div>
           <button
-            id="btn-logout"
             type="button"
             className="sidebar-logout-btn"
             onClick={handleLogout}
             title="Sign Out"
-            aria-label="Logout button"
           >
             <Icon.Logout />
           </button>
         </footer>
       </aside>
 
-      {/* Main content workspace */}
       <main className="app-workspace">
-        
-        {/* VIEW: HOME FEED */}
+        {error && (
+          <div className="form-error" style={{ marginBottom: "20px" }}>
+            <strong>Database Offline / Server Down:</strong> {error}. Ensure you run `pnpm run dev` in the backend.
+          </div>
+        )}
+
+        {/* PAGE: FEED */}
         {view === "feed" && (
           <section id="page-feed">
             <header className="page-header">
               <h2>Home Feed</h2>
-              <div className="page-actions">
-                <button
-                  id="btn-create-event-feed"
-                  type="button"
-                  className="form-submit-btn"
-                  style={{ margin: 0, padding: "10px 18px" }}
-                  onClick={() => {
-                    setEventDraft(emptyDraft());
-                    setSelectedEventId(null);
-                    setIsEventModalOpen(true);
-                  }}
-                >
-                  <span style={{ marginRight: 6 }}>+</span> New Event
-                </button>
-              </div>
+              <button
+                type="button"
+                className="form-submit-btn"
+                style={{ margin: 0, padding: "10px 18px" }}
+                onClick={() => {
+                  setEventDraft(emptyDraft());
+                  setSelectedEventId(null);
+                  setIsEventModalOpen(true);
+                }}
+              >
+                + New Event
+              </button>
             </header>
 
-            {error && (
-              <div className="form-error" style={{ marginBottom: "20px" }}>
-                <strong>API Connection Error:</strong> {error}. Make sure the backend server is running.
-              </div>
-            )}
-
-            <section className="feed-filters" aria-label="Feed filters">
+            <section className="feed-filters" aria-label="Filters">
               <div className="filter-controls">
-                <label htmlFor="feed-sort-by" style={{ display: "none" }}>Sort By</label>
                 <select
-                  id="feed-sort-by"
                   className="filter-select"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as EventSortBy)}
                 >
-                  <option value="eventDate">Sort by event date</option>
+                  <option value="eventDate">Sort by date</option>
                   <option value="title">Sort by title</option>
                   <option value="category">Sort by category</option>
                 </select>
 
-                <label htmlFor="feed-sort-order" style={{ display: "none" }}>Sort Order</label>
                 <select
-                  id="feed-sort-order"
                   className="filter-select"
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value as EventSortOrder)}
@@ -966,9 +1274,7 @@ function App() {
                   <option value="asc">Oldest first</option>
                 </select>
 
-                <label htmlFor="feed-club-filter" style={{ display: "none" }}>Filter by Club</label>
                 <select
-                  id="feed-club-filter"
                   className="filter-select"
                   value={clubFilter}
                   onChange={(e) => setClubFilter(e.target.value)}
@@ -979,9 +1285,7 @@ function App() {
                   ))}
                 </select>
 
-                <label htmlFor="feed-visibility-filter" style={{ display: "none" }}>Filter by Visibility</label>
                 <select
-                  id="feed-visibility-filter"
                   className="filter-select"
                   value={visibilityFilter}
                   onChange={(e) => setVisibilityFilter(e.target.value as "all" | EventVisibility)}
@@ -992,8 +1296,8 @@ function App() {
                 </select>
               </div>
 
-              <div className="category-chips" aria-label="Category filter chips">
-                {categories.map((cat) => (
+              <div className="category-chips">
+                {CATEGORIES.map((cat) => (
                   <button
                     key={cat}
                     type="button"
@@ -1009,496 +1313,402 @@ function App() {
             {loading && events.length === 0 ? (
               <div className="empty-placeholder">
                 <Icon.Calendar />
-                <h4>Loading feed...</h4>
-                <p>Establishing secure connection with EventVault backend API.</p>
+                <h4>Loading items...</h4>
               </div>
             ) : events.length === 0 ? (
               <div className="empty-placeholder">
                 <Icon.Calendar />
-                <h4>No Events Found</h4>
-                <p>Be the first to shape the calendar. Create an event to post on the feed.</p>
+                <h4>No Event Albums Found</h4>
+                <p>Attach visual files to events to populate your feed.</p>
               </div>
             ) : (
-              <div className="feed-stream">
-                {events.map((evt) => {
-                  const eventMediaList = media[evt.id] || [];
-                  const activeCarouselIdx = activeMediaCarouselIndex[evt.id] || 0;
-                  
-                  // Collect all visual slides
-                  const slides: Array<{ url: string; caption?: string }> = [];
-                  eventMediaList.forEach(m => {
-                    slides.push({ url: m.fileUrl, caption: m.caption });
-                  });
-                  if (evt.coverImage) {
-                    slides.push({ url: evt.coverImage, caption: "Cover Image" });
-                  }
+              renderEventList(events)
+            )}
+          </section>
+        )}
 
-                  const likedList = likes[evt.id] || [];
-                  const userLiked = likedList.includes(currentUser.id);
+        {/* PAGE: SEARCH & DISCOVERY (Phase 9) */}
+        {view === "search" && (
+          <section id="page-search">
+            <header className="page-header">
+              <h2>Search & Discover</h2>
+            </header>
 
-                  return (
-                    <article key={evt.id} className="post-card">
-                      {/* Post Header */}
-                      <header className="post-header">
-                        <div className="post-author">
-                          <div className="post-author-avatar">
-                            {evt.creator?.name ? evt.creator.name.charAt(0).toUpperCase() : "?"}
-                          </div>
-                          <div className="post-author-info">
-                            <span className="post-author-name">{evt.creator?.name || "Organizer"}</span>
-                            <div className="post-meta-details">
-                              <span>{formatDate(evt.eventDate)}</span>
-                              <span>•</span>
-                              <span>{evt.club?.name || "Independent"}</span>
-                            </div>
-                          </div>
-                        </div>
+            <form className="feed-filters" onSubmit={triggerSearch} style={{ display: "flex", flexDirection: "column", gap: "14px", alignItems: "stretch" }}>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Search titles, descriptions, locations..."
+                  value={searchFilters.q || ""}
+                  onChange={(e) => setSearchFilters(prev => ({ ...prev, q: e.target.value }))}
+                  style={{ flex: 1 }}
+                />
+                <button type="submit" className="form-submit-btn" style={{ margin: 0, padding: "10px 24px" }}>
+                  Search
+                </button>
+              </div>
 
-                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                          <span className="post-category-tag">{evt.category}</span>
-                          <span className={`post-visibility-badge ${evt.visibility.toLowerCase()}`}>
-                            {evt.visibility}
-                          </span>
-                        </div>
-                      </header>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+                <div className="form-group">
+                  <label style={{ fontSize: "0.75rem", fontWeight: "600", color: "var(--text-secondary)" }}>Category</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Workshop"
+                    value={searchFilters.category || ""}
+                    onChange={(e) => setSearchFilters(prev => ({ ...prev, category: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: "0.75rem", fontWeight: "600", color: "var(--text-secondary)" }}>Attached Club</label>
+                  <select
+                    className="form-select"
+                    value={searchFilters.clubId || ""}
+                    onChange={(e) => setSearchFilters(prev => ({ ...prev, clubId: e.target.value }))}
+                  >
+                    <option value="">Any Club</option>
+                    {clubs.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: "0.75rem", fontWeight: "600", color: "var(--text-secondary)" }}>Starting Date</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={searchFilters.startDate || ""}
+                    onChange={(e) => setSearchFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: "0.75rem", fontWeight: "600", color: "var(--text-secondary)" }}>Ending Date</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={searchFilters.endDate || ""}
+                    onChange={(e) => setSearchFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </form>
 
-                      {/* Post Visual Media Area */}
-                      {slides.length > 0 ? (
-                        <div className="post-media-container">
-                          <img
-                            src={slides[activeCarouselIdx].url}
-                            alt={`${evt.title} image`}
-                            className="post-media"
-                          />
-                          {slides.length > 1 && (
-                            <>
-                              <button
-                                type="button"
-                                className="carousel-btn prev"
-                                onClick={() => {
-                                  setActiveMediaCarouselIndex(prev => ({
-                                    ...prev,
-                                    [evt.id]: (activeCarouselIdx - 1 + slides.length) % slides.length,
-                                  }));
-                                }}
-                                aria-label="Previous slide"
-                              >
-                                <Icon.ChevronLeft />
-                              </button>
-                              <button
-                                type="button"
-                                className="carousel-btn next"
-                                onClick={() => {
-                                  setActiveMediaCarouselIndex(prev => ({
-                                    ...prev,
-                                    [evt.id]: (activeCarouselIdx + 1) % slides.length,
-                                  }));
-                                }}
-                                aria-label="Next slide"
-                              >
-                                <Icon.ChevronRight />
-                              </button>
-
-                              <div className="carousel-dots">
-                                {slides.map((_, i) => (
-                                  <div
-                                    key={i}
-                                    className={`carousel-dot ${activeCarouselIdx === i ? "active" : ""}`}
-                                  />
-                                ))}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="post-media-container" style={{ display: "grid", placeItems: "center", background: "#111827" }}>
-                          <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No media uploaded yet</span>
-                        </div>
-                      )}
-
-                      {/* Post Content */}
-                      <section className="post-content">
-                        <h3 className="post-title">{evt.title}</h3>
-                        {evt.description && (
-                          <p className="post-description">{evt.description}</p>
-                        )}
-
-                        <div className="post-info-row">
-                          {evt.location && (
-                            <div className="post-info-item">
-                              <Icon.MapPin />
-                              <span>{evt.location}</span>
-                            </div>
-                          )}
-                          <div className="post-info-item">
-                            <Icon.Calendar />
-                            <span>{formatDate(evt.eventDate)}</span>
-                          </div>
-                        </div>
-
-                        {/* Interactive bar */}
-                        <div className="post-actions">
-                          <button
-                            type="button"
-                            className={`post-action-btn ${userLiked ? "liked" : ""}`}
-                            onClick={() => handleLikeEvent(evt.id)}
-                            aria-label={`Like event, current likes ${likedList.length}`}
-                          >
-                            <Icon.Heart />
-                            <span>{likedList.length}</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="post-action-btn"
-                            onClick={() => {
-                              // Toggles comment focus or display
-                              const commForm = document.getElementById(`comments-form-${evt.id}`);
-                              if (commForm) commForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                            }}
-                          >
-                            <Icon.Comment />
-                            <span>{(comments[evt.id] || []).length} Comments</span>
-                          </button>
-                        </div>
-                      </section>
-
-                      {/* Comments Drawer */}
-                      <section className="post-comments-section" aria-label="Comments">
-                        <div className="comments-list">
-                          {(comments[evt.id] || []).map((comm) => (
-                            <div key={comm.id} className="comment-item">
-                              <div className="comment-avatar">
-                                {comm.userName.charAt(0).toUpperCase()}
-                              </div>
-                              <div className="comment-bubble">
-                                <span className="comment-author-name">{comm.userName}</span>
-                                <span className="comment-text">{comm.text}</span>
-                              </div>
-                            </div>
-                          ))}
-                          {(comments[evt.id] || []).length === 0 && (
-                            <p style={{ fontStyle: "italic", fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                              No comments yet. Start the conversation.
-                            </p>
-                          )}
-                        </div>
-
-                        <form
-                          id={`comments-form-${evt.id}`}
-                          className="comment-input-form"
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            const input = e.currentTarget.elements.namedItem(`comm-input-${evt.id}`) as HTMLInputElement;
-                            if (input && input.value.trim()) {
-                              handleAddComment(evt.id, input.value);
-                              input.value = "";
-                            }
-                          }}
-                        >
-                          <input
-                            name={`comm-input-${evt.id}`}
-                            type="text"
-                            placeholder="Add a comment..."
-                            className="comment-input"
-                            autoComplete="off"
-                          />
-                          <button type="submit" className="comment-submit-btn">Post</button>
-                        </form>
-                      </section>
-                    </article>
-                  );
-                })}
+            {loading ? (
+              <div className="empty-placeholder">
+                <Icon.Compass />
+                <h4>Searching database...</h4>
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="empty-placeholder">
+                <Icon.Compass />
+                <h4>No Matching Results</h4>
+                <p>Refine your filters to discover standalone or club events.</p>
+              </div>
+            ) : (
+              <div>
+                <h4 style={{ margin: "20px 0 14px", fontSize: "1.1rem" }}>Matching Event Albums ({searchResults.length})</h4>
+                {renderEventList(searchResults)}
               </div>
             )}
           </section>
         )}
 
-        {/* VIEW: EXPLORE CLUBS */}
+        {/* PAGE: NOTIFICATIONS (Phase 8) */}
+        {view === "notifications" && (
+          <section id="page-notifications">
+            <header className="page-header">
+              <h2>My Notifications</h2>
+              {unreadNotifications > 0 && (
+                <button
+                  type="button"
+                  className="sec-btn"
+                  onClick={handleReadAllNotifications}
+                >
+                  Mark all as read
+                </button>
+              )}
+            </header>
+
+            <div className="feed-stream" style={{ gap: "12px", maxWidth: "600px", margin: "0 auto" }}>
+              {notifications.map((n) => (
+                <article
+                  key={n.id}
+                  className={`comment-item comment-bubble`}
+                  style={{
+                    padding: "16px",
+                    background: n.isRead ? "rgba(255, 255, 255, 0.02)" : "rgba(139, 92, 246, 0.06)",
+                    border: "1px solid",
+                    borderColor: n.isRead ? "var(--border-glass)" : "var(--border-glass-focus)",
+                    borderRadius: "16px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    cursor: n.isRead ? "default" : "pointer"
+                  }}
+                  onClick={() => !n.isRead && void handleReadNotification(n.id)}
+                >
+                  <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
+                    <div className="sidebar-avatar" style={{ background: n.isRead ? "var(--text-muted)" : "var(--accent-primary)" }}>
+                      <Icon.Bell />
+                    </div>
+                    <div>
+                      <p style={{ color: "var(--text-primary)", fontSize: "0.95rem" }}>{n.message}</p>
+                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{formatDate(n.createdAt)}</span>
+                    </div>
+                  </div>
+                  {!n.isRead && (
+                    <span className="badge badge--green" style={{ textTransform: "none", fontSize: "0.7rem" }}>New</span>
+                  )}
+                </article>
+              ))}
+
+              {notifications.length === 0 && (
+                <div className="empty-placeholder">
+                  <Icon.Bell />
+                  <h4>Clear Sky</h4>
+                  <p>You have no notifications yet.</p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* PAGE: EXPLORE CLUBS */}
         {view === "clubs" && (
           <section id="page-clubs">
             <header className="page-header">
               <h2>Explore Clubs</h2>
-              <div className="page-actions">
-                {currentUser.role !== "VIEWER" && (
-                  <button
-                    id="btn-create-club"
-                    type="button"
-                    className="form-submit-btn"
-                    style={{ margin: 0, padding: "10px 18px" }}
-                    onClick={() => {
-                      setClubDraft(emptyClubDraft());
-                      setIsClubModalOpen(true);
-                    }}
-                  >
-                    Create Club
-                  </button>
-                )}
-              </div>
+              {currentUser.role !== "VIEWER" && (
+                <button
+                  type="button"
+                  className="form-submit-btn"
+                  style={{ margin: 0, padding: "10px 18px" }}
+                  onClick={() => {
+                    setClubDraft(emptyClubDraft());
+                    setIsClubModalOpen(true);
+                  }}
+                >
+                  Create Club
+                </button>
+              )}
             </header>
 
-            {loading && clubs.length === 0 ? (
-              <div className="empty-placeholder">
-                <Icon.Compass />
-                <h4>Loading clubs...</h4>
-              </div>
-            ) : clubs.length === 0 ? (
-              <div className="empty-placeholder">
-                <Icon.Compass />
-                <h4>No Clubs Registered</h4>
-                <p>Register a club to begin gathering members and attaching events.</p>
-              </div>
-            ) : (
-              <div>
-                <div className="clubs-grid">
-                  {clubs.map((c) => {
-                    const isOwner = c.createdById === currentUser.id;
-                    const membersList = clubMembersMap[c.id] || [];
-                    const isMember = membersList.some(m => m.userId === currentUser.id);
-                    const requestsList = clubRequestsMap[c.id] || [];
-                    const isPending = requestsList.some(r => r.userId === currentUser.id && r.status === "PENDING");
-                    
-                    return (
-                      <article
-                        key={c.id}
-                        className={`club-card ${expandedClubId === c.id ? "active" : ""}`}
-                        onClick={() => {
-                          setExpandedClubId(expandedClubId === c.id ? null : c.id);
-                          setClubTab("members");
-                        }}
+            <div className="clubs-grid">
+              {clubs.map((c) => {
+                const isOwner = c.createdById === currentUser.id;
+                const membersList = clubMembersMap[c.id] || [];
+                const isMember = membersList.some((m) => m.userId === currentUser.id);
+                const requestsList = clubRequestsMap[c.id] || [];
+                const isPending = requestsList.some((r) => r.userId === currentUser.id && r.status === "PENDING");
+
+                return (
+                  <article
+                    key={c.id}
+                    className={`club-card ${expandedClubId === c.id ? "active" : ""}`}
+                    onClick={() => {
+                      setExpandedClubId(expandedClubId === c.id ? null : c.id);
+                      setClubTab("members");
+                    }}
+                  >
+                    <div className="club-logo">
+                      {c.logoUrl ? (
+                        <img src={c.logoUrl} alt={c.name} />
+                      ) : (
+                        c.name.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <h3 className="club-name">{c.name}</h3>
+                    <p className="club-desc">{c.description || "No description provided."}</p>
+
+                    <div className="club-footer">
+                      <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                        {membersList.length} members
+                      </span>
+                      
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        {isOwner && <span className="club-membership-badge owner">Owner</span>}
+                        {isMember && !isOwner && <span className="club-membership-badge member">Member</span>}
+                        {isPending && <span className="club-membership-badge pending">Pending</span>}
+                        
+                        <button
+                          type="button"
+                          className={`club-join-btn ${isMember ? "joined" : ""}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleToggleJoinClub(c.id, isMember);
+                          }}
+                        >
+                          {isMember ? "Leave" : isPending ? "Pending" : "Join"}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            {expandedClubId && (
+              (() => {
+                const activeClub = clubs.find((c) => c.id === expandedClubId);
+                if (!activeClub) return null;
+                const isOwner = activeClub.createdById === currentUser.id;
+                const members = clubMembersMap[expandedClubId] || [];
+                const requests = clubRequestsMap[expandedClubId] || [];
+                const clubEvents = events.filter((e) => e.clubId === expandedClubId);
+
+                return (
+                  <section className="club-drawer" aria-label="Club settings">
+                    <header className="club-drawer-header">
+                      <div>
+                        <span style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "var(--text-secondary)" }}>Club Console</span>
+                        <h3 style={{ fontSize: "1.5rem", fontWeight: "700" }}>{activeClub.name}</h3>
+                      </div>
+                      <button
+                        type="button"
+                        className="modal-close-btn"
+                        onClick={() => setExpandedClubId(null)}
                       >
-                        <div className="club-logo">
-                          {c.logoUrl ? (
-                            <img src={c.logoUrl} alt={`${c.name} logo`} />
-                          ) : (
-                            c.name.charAt(0).toUpperCase()
-                          )}
-                        </div>
-                        <h3 className="club-name">{c.name}</h3>
-                        <p className="club-desc">{c.description || "No description provided."}</p>
+                        <Icon.Close />
+                      </button>
+                    </header>
 
-                        <div className="club-footer">
-                          <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                            {membersList.length} members
-                          </span>
-                          
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                            {isOwner && <span className="club-membership-badge owner">Owner</span>}
-                            {isMember && !isOwner && <span className="club-membership-badge member">Member</span>}
-                            {isPending && <span className="club-membership-badge pending">Pending</span>}
-                            
-                            <button
-                              type="button"
-                              className={`club-join-btn ${isMember ? "joined" : ""}`}
-                              onClick={(e) => {
-                                e.stopPropagation(); // Avoid expanding card
-                                void handleToggleJoinClub(c.id, isMember);
-                              }}
-                            >
-                              {isMember ? "Leave" : isPending ? "Pending" : "Join"}
-                            </button>
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
+                    <nav className="club-drawer-tabs">
+                      <button
+                        type="button"
+                        className={`club-drawer-tab-btn ${clubTab === "members" ? "active" : ""}`}
+                        onClick={() => setClubTab("members")}
+                      >
+                        Members ({members.length})
+                      </button>
+                      {isOwner && (
+                        <button
+                          type="button"
+                          className={`club-drawer-tab-btn ${clubTab === "requests" ? "active" : ""}`}
+                          onClick={() => setClubTab("requests")}
+                        >
+                          Join Requests ({requests.length})
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className={`club-drawer-tab-btn ${clubTab === "events" ? "active" : ""}`}
+                        onClick={() => setClubTab("events")}
+                      >
+                        Events ({clubEvents.length})
+                      </button>
+                    </nav>
 
-                {/* Expanded Club Admin/Detail Drawer */}
-                {expandedClubId && (
-                  (() => {
-                    const activeClub = clubs.find(c => c.id === expandedClubId);
-                    if (!activeClub) return null;
-                    const isOwner = activeClub.createdById === currentUser.id;
-                    const members = clubMembersMap[expandedClubId] || [];
-                    const requests = clubRequestsMap[expandedClubId] || [];
-                    const clubEvents = events.filter(e => e.clubId === expandedClubId);
+                    <div className="club-drawer-content">
+                      {clubTab === "members" && (
+                        <table className="club-table">
+                          <thead>
+                            <tr>
+                              <th>Member</th>
+                              <th>Role</th>
+                              <th>Joined At</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {members.map((m) => (
+                              <tr key={m.id}>
+                                <td>{m.user?.name || "User"}</td>
+                                <td>{m.role}</td>
+                                <td>{formatDate(m.joinedAt)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
 
-                    return (
-                      <section className="club-drawer" aria-label="Club Details">
-                        <header className="club-drawer-header">
-                          <div>
-                            <span style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "var(--text-secondary)" }}>Club Management</span>
-                            <h3 style={{ fontSize: "1.5rem", fontWeight: "700" }}>{activeClub.name}</h3>
-                          </div>
-                          <button
-                            type="button"
-                            className="modal-close-btn"
-                            onClick={() => setExpandedClubId(null)}
-                            aria-label="Close details drawer"
-                          >
-                            <Icon.Close />
-                          </button>
-                        </header>
-
-                        <nav className="club-drawer-tabs" aria-label="Club section tabs">
-                          <button
-                            type="button"
-                            className={`club-drawer-tab-btn ${clubTab === "members" ? "active" : ""}`}
-                            onClick={() => setClubTab("members")}
-                          >
-                            Members ({members.length})
-                          </button>
-                          {isOwner && (
-                            <button
-                              type="button"
-                              className={`club-drawer-tab-btn ${clubTab === "requests" ? "active" : ""}`}
-                              onClick={() => setClubTab("requests")}
-                            >
-                              Join Requests ({requests.length})
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className={`club-drawer-tab-btn ${clubTab === "events" ? "active" : ""}`}
-                            onClick={() => setClubTab("events")}
-                          >
-                            Events ({clubEvents.length})
-                          </button>
-                        </nav>
-
-                        <div className="club-drawer-content">
-                          {clubTab === "members" && (
-                            <div className="club-drawer-table-wrapper">
-                              <table className="club-table">
-                                <thead>
-                                  <tr>
-                                    <th>User</th>
-                                    <th>Role</th>
-                                    <th>Joined At</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {members.map((m) => (
-                                    <tr key={m.id}>
-                                      <td>{m.user?.name || "Member"}</td>
-                                      <td>{m.role}</td>
-                                      <td>{formatDate(m.joinedAt)}</td>
-                                    </tr>
-                                  ))}
-                                  {members.length === 0 && (
-                                    <tr>
-                                      <td colSpan={3} style={{ textAlign: "center", color: "var(--text-muted)" }}>
-                                        No members in this club.
-                                      </td>
-                                    </tr>
+                      {clubTab === "requests" && isOwner && (
+                        <table className="club-table">
+                          <thead>
+                            <tr>
+                              <th>Applicant</th>
+                              <th>Status</th>
+                              <th>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {requests.map((r) => (
+                              <tr key={r.id}>
+                                <td>{r.user?.name || "User"}</td>
+                                <td>{r.status}</td>
+                                <td>
+                                  {r.status === "PENDING" && (
+                                    <div className="action-row">
+                                      <button
+                                        type="button"
+                                        className="table-btn approve"
+                                        onClick={() => void handleReviewJoinRequest(activeClub.id, r.id, true)}
+                                      >
+                                        Approve
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="table-btn reject"
+                                        onClick={() => void handleReviewJoinRequest(activeClub.id, r.id, false)}
+                                      >
+                                        Reject
+                                      </button>
+                                    </div>
                                   )}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
 
-                          {clubTab === "requests" && isOwner && (
-                            <div className="club-drawer-table-wrapper">
-                              <table className="club-table">
-                                <thead>
-                                  <tr>
-                                    <th>User</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {requests.map((r) => (
-                                    <tr key={r.id}>
-                                      <td>{r.user?.name || "User"}</td>
-                                      <td>{r.status}</td>
-                                      <td>
-                                        {r.status === "PENDING" ? (
-                                          <div className="action-row">
-                                            <button
-                                              type="button"
-                                              className="table-btn approve"
-                                              onClick={() => void handleReviewJoinRequest(activeClub.id, r.id, true)}
-                                            >
-                                              Approve
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="table-btn reject"
-                                              onClick={() => void handleReviewJoinRequest(activeClub.id, r.id, false)}
-                                            >
-                                              Reject
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Reviewed</span>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                  {requests.length === 0 && (
-                                    <tr>
-                                      <td colSpan={3} style={{ textAlign: "center", color: "var(--text-muted)" }}>
-                                        No active join requests.
-                                      </td>
-                                    </tr>
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-
-                          {clubTab === "events" && (
-                            <div className="club-drawer-table-wrapper">
-                              <table className="club-table">
-                                <thead>
-                                  <tr>
-                                    <th>Event Title</th>
-                                    <th>Category</th>
-                                    <th>Date</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {clubEvents.map((evt) => (
-                                    <tr key={evt.id}>
-                                      <td style={{ fontWeight: "600" }}>{evt.title}</td>
-                                      <td>{evt.category}</td>
-                                      <td>{formatDate(evt.eventDate)}</td>
-                                    </tr>
-                                  ))}
-                                  {clubEvents.length === 0 && (
-                                    <tr>
-                                      <td colSpan={3} style={{ textAlign: "center", color: "var(--text-muted)" }}>
-                                        No events linked to this club yet.
-                                      </td>
-                                    </tr>
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      </section>
-                    );
-                  })()
-                )}
-              </div>
+                      {clubTab === "events" && (
+                        <table className="club-table">
+                          <thead>
+                            <tr>
+                              <th>Event Title</th>
+                              <th>Category</th>
+                              <th>Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {clubEvents.map((evt) => (
+                              <tr key={evt.id}>
+                                <td style={{ fontWeight: "600" }}>{evt.title}</td>
+                                <td>{evt.category}</td>
+                                <td>{formatDate(evt.eventDate)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </section>
+                );
+              })()
             )}
           </section>
         )}
 
-        {/* VIEW: UPLOAD MEDIA */}
+        {/* PAGE: UPLOAD MEDIA */}
         {view === "upload" && (
           <section id="page-upload">
             <header className="page-header">
-              <h2>Upload Media</h2>
+              <h2>Upload Files to S3</h2>
             </header>
 
             <form className="upload-card" onSubmit={handleUploadMedia}>
               <div className="form-group">
-                <label htmlFor="upload-event">Select Event</label>
+                <label htmlFor="upload-event-id">Target Event</label>
                 <select
-                  id="upload-event"
+                  id="upload-event-id"
                   className="form-select"
                   value={uploadSelectedEventId}
                   onChange={(e) => setUploadSelectedEventId(e.target.value)}
                   required
                 >
-                  <option value="">Choose an event...</option>
+                  <option value="">Select an Event Album...</option>
                   {events.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.title} ({e.category})
-                    </option>
+                    <option key={e.id} value={e.id}>{e.title}</option>
                   ))}
                 </select>
               </div>
@@ -1507,24 +1717,40 @@ function App() {
                 <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.88rem" }}>
                   <input
                     type="radio"
-                    checked={uploadMediaSource === "preset"}
-                    onChange={() => setUploadMediaSource("preset")}
+                    checked={uploadMediaSource === "local"}
+                    onChange={() => setUploadMediaSource("local")}
                   />
-                  Choose Preset Image
+                  Upload Local File
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.88rem" }}>
                   <input
                     type="radio"
-                    checked={uploadMediaSource === "url"}
-                    onChange={() => setUploadMediaSource("url")}
+                    checked={uploadMediaSource === "preset"}
+                    onChange={() => setUploadMediaSource("preset")}
                   />
-                  Custom Image URL
+                  Choose Unsplash Preset
                 </label>
               </div>
 
-              {uploadMediaSource === "preset" ? (
+              {uploadMediaSource === "local" ? (
+                <div className="form-group" style={{ marginBottom: "20px" }}>
+                  <label htmlFor="upload-local-input">Select File</label>
+                  <input
+                    id="upload-local-input"
+                    type="file"
+                    className="form-input"
+                    accept="image/*,video/*"
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        setUploadFiles(Array.from(e.target.files));
+                      }
+                    }}
+                    required
+                  />
+                </div>
+              ) : (
                 <div className="preset-selector">
-                  <p>Preset Photos</p>
+                  <p>Choose Preset</p>
                   <div className="presets-grid">
                     {PRESET_MEDIAS.map((p) => (
                       <button
@@ -1538,42 +1764,17 @@ function App() {
                     ))}
                   </div>
                 </div>
-              ) : (
-                <div className="form-group" style={{ marginBottom: "16px" }}>
-                  <label htmlFor="upload-media-url">Image URL</label>
-                  <input
-                    id="upload-media-url"
-                    type="url"
-                    className="form-input"
-                    placeholder="https://images.unsplash.com/photo-..."
-                    value={uploadMediaUrl}
-                    onChange={(e) => setUploadMediaUrl(e.target.value)}
-                  />
-                </div>
               )}
 
-              {/* Upload Preview */}
-              <div className="upload-preview-container">
-                <img
-                  src={
-                    uploadMediaSource === "preset"
-                      ? PRESET_MEDIAS.find(p => p.id === uploadPresetId)?.url
-                      : uploadMediaUrl || "https://images.unsplash.com/photo-1557683316-973673baf926?w=800"
-                  }
-                  alt="Upload preview"
-                  className="upload-preview-image"
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: "20px" }}>
-                <label htmlFor="upload-caption">Caption</label>
+              <div className="form-group" style={{ marginBottom: "24px" }}>
+                <label htmlFor="upload-file-title">Title / Caption</label>
                 <input
-                  id="upload-caption"
+                  id="upload-file-title"
                   type="text"
                   className="form-input"
-                  placeholder="Describe this photo..."
-                  value={uploadCaption}
-                  onChange={(e) => setUploadCaption(e.target.value)}
+                  placeholder="Caption this file..."
+                  value={uploadTitle}
+                  onChange={(e) => setUploadTitle(e.target.value)}
                 />
               </div>
 
@@ -1583,25 +1784,24 @@ function App() {
                     <div className="progress-bar" style={{ width: `${uploadProgress}%` }} />
                   </div>
                   <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", textAlign: "center", marginBottom: "14px" }}>
-                    Compressing and uploading file... {uploadProgress}%
+                    Uploading files to storage... {uploadProgress}%
                   </p>
                 </div>
               )}
 
               <button
-                id="btn-upload-submit"
                 type="submit"
                 className="form-submit-btn"
-                disabled={isUploading || uploadSelectedEventId === ""}
+                disabled={isUploading || !uploadSelectedEventId}
                 style={{ width: "100%", margin: 0 }}
               >
-                {isUploading ? "Uploading..." : "Upload Media under Event"}
+                {isUploading ? "Uploading..." : "Start Upload"}
               </button>
             </form>
           </section>
         )}
 
-        {/* VIEW: MY PROFILE */}
+        {/* PAGE: PROFILE */}
         {view === "profile" && (
           <section id="page-profile">
             <header className="page-header">
@@ -1622,7 +1822,7 @@ function App() {
                 <div className="profile-stats-row">
                   <div className="profile-stat-item">
                     <span className="profile-stat-num">{userEvents.length}</span>
-                    <span className="profile-stat-label">Events Created</span>
+                    <span className="profile-stat-label">Events Managed</span>
                   </div>
                   <div className="profile-stat-item">
                     <span className="profile-stat-num">
@@ -1634,17 +1834,17 @@ function App() {
               </div>
             </article>
 
-            <div className="profile-tabs" aria-label="Profile navigation tabs">
+            <div className="profile-tabs">
               <button type="button" className="profile-tab-btn active">
-                My Managed Events ({userEvents.length})
+                My Events ({userEvents.length})
               </button>
             </div>
 
             {userEvents.length === 0 ? (
               <div className="empty-placeholder">
                 <Icon.Calendar />
-                <h4>No Events Created</h4>
-                <p>You haven't scheduled any events yet.</p>
+                <h4>No Events Scheduled</h4>
+                <p>Tap "New Event" in the Feed to schedule an event album.</p>
               </div>
             ) : (
               <div className="profile-grid">
@@ -1668,10 +1868,10 @@ function App() {
                     }}
                   >
                     {evt.coverImage ? (
-                      <img src={evt.coverImage} alt={evt.title} />
+                      <img src={getMediaSourceUrl(evt.coverImage)} alt={evt.title} />
                     ) : (
                       <div style={{ width: "100%", height: "100%", background: "#1f2937", display: "grid", placeItems: "center" }}>
-                        <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>No cover</span>
+                        <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>No cover image</span>
                       </div>
                     )}
                     <div className="profile-grid-overlay">
@@ -1695,12 +1895,12 @@ function App() {
         </div>
       )}
 
-      {/* MODAL: CREATE OR UPDATE EVENT */}
+      {/* EVENT MODAL */}
       {isEventModalOpen && (
         <div className="modal-overlay" role="dialog" aria-modal="true">
           <div className="modal-content">
             <header className="modal-header">
-              <h3>{selectedEventId ? "Edit Event" : "Create Event"}</h3>
+              <h3>{selectedEventId ? "Edit Event Album" : "Create Event Album"}</h3>
               <button
                 type="button"
                 className="modal-close-btn"
@@ -1709,7 +1909,6 @@ function App() {
                   setSelectedEventId(null);
                   setEventDraft(emptyDraft());
                 }}
-                aria-label="Close event modal"
               >
                 <Icon.Close />
               </button>
@@ -1722,7 +1921,7 @@ function App() {
                   id="evt-title"
                   type="text"
                   className="form-input"
-                  placeholder="e.g. Moonlight Convocation"
+                  placeholder="e.g. Moonlight Concert"
                   value={eventDraft.title}
                   onChange={(e) => setEventDraft(prev => ({ ...prev, title: e.target.value }))}
                   required
@@ -1735,7 +1934,7 @@ function App() {
                   id="evt-category"
                   type="text"
                   className="form-input"
-                  placeholder="e.g. Workshop, Music, Sports"
+                  placeholder="e.g. Concert, Meetup"
                   value={eventDraft.category}
                   onChange={(e) => setEventDraft(prev => ({ ...prev, category: e.target.value }))}
                   required
@@ -1748,7 +1947,7 @@ function App() {
                   id="evt-desc"
                   rows={3}
                   className="form-input"
-                  placeholder="A brief atmospheric description..."
+                  placeholder="Short event details..."
                   value={eventDraft.description}
                   onChange={(e) => setEventDraft(prev => ({ ...prev, description: e.target.value }))}
                   style={{ resize: "vertical" }}
@@ -1788,7 +1987,7 @@ function App() {
                   id="evt-location"
                   type="text"
                   className="form-input"
-                  placeholder="e.g. Courtyard East"
+                  placeholder="e.g. Courtyard"
                   value={eventDraft.location}
                   onChange={(e) => setEventDraft(prev => ({ ...prev, location: e.target.value }))}
                 />
@@ -1800,25 +1999,23 @@ function App() {
                   id="evt-cover"
                   type="url"
                   className="form-input"
-                  placeholder="https://images.example.com/event.jpg"
+                  placeholder="https://..."
                   value={eventDraft.coverImage}
                   onChange={(e) => setEventDraft(prev => ({ ...prev, coverImage: e.target.value }))}
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="evt-club">Link to Club</label>
+                <label htmlFor="evt-club">Linked Club</label>
                 <select
                   id="evt-club"
                   className="form-select"
                   value={eventDraft.clubId}
                   onChange={(e) => setEventDraft(prev => ({ ...prev, clubId: e.target.value }))}
                 >
-                  <option value="">No club attached (Standalone)</option>
+                  <option value="">None (Standalone)</option>
                   {clubs.map((club) => (
-                    <option key={club.id} value={club.id}>
-                      {club.name}
-                    </option>
+                    <option key={club.id} value={club.id}>{club.name}</option>
                   ))}
                 </select>
               </div>
@@ -1853,17 +2050,16 @@ function App() {
         </div>
       )}
 
-      {/* MODAL: CREATE CLUB */}
+      {/* CLUB FORM MODAL */}
       {isClubModalOpen && (
         <div className="modal-overlay" role="dialog" aria-modal="true">
           <div className="modal-content">
             <header className="modal-header">
-              <h3>Create Club</h3>
+              <h3>Create New Club</h3>
               <button
                 type="button"
                 className="modal-close-btn"
                 onClick={() => setIsClubModalOpen(false)}
-                aria-label="Close club modal"
               >
                 <Icon.Close />
               </button>
@@ -1876,7 +2072,7 @@ function App() {
                   id="club-name"
                   type="text"
                   className="form-input"
-                  placeholder="e.g. Photography Society"
+                  placeholder="e.g. Photo Society"
                   value={clubDraft.name}
                   onChange={(e) => setClubDraft(prev => ({ ...prev, name: e.target.value }))}
                   required
@@ -1889,7 +2085,7 @@ function App() {
                   id="club-desc"
                   rows={3}
                   className="form-input"
-                  placeholder="What is this club about..."
+                  placeholder="Describe your club..."
                   value={clubDraft.description}
                   onChange={(e) => setClubDraft(prev => ({ ...prev, description: e.target.value }))}
                   style={{ resize: "vertical" }}
@@ -1897,12 +2093,12 @@ function App() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="club-logo">Logo URL (Optional)</label>
+                <label htmlFor="club-logo">Logo URL</label>
                 <input
                   id="club-logo"
                   type="url"
                   className="form-input"
-                  placeholder="https://images.example.com/logo.png"
+                  placeholder="https://..."
                   value={clubDraft.logoUrl}
                   onChange={(e) => setClubDraft(prev => ({ ...prev, logoUrl: e.target.value }))}
                 />

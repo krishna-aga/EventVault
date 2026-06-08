@@ -68,3 +68,61 @@ export interface EventFilters {
   clubId?: string;
   visibility?: EventVisibility;
 }
+
+export interface MediaSummary {
+  id: string;
+  title: string | null;
+  fileUrl: string;
+  thumbnailUrl: string | null;
+  fileType: string;
+  fileSize: number | null;
+  uploadedAt: string;
+  uploadedById: string;
+  eventId: string;
+  batchId: string | null;
+  uploader?: UserSummary;
+}
+
+export interface CommentSummary {
+  id: string;
+  content: string;
+  createdAt: string;
+  userId: string;
+  mediaId: string;
+  user?: UserSummary;
+}
+
+export interface LikeSummary {
+  id: string;
+  userId: string;
+  mediaId: string;
+  createdAt: string;
+  user?: UserSummary;
+}
+
+export interface FavouriteSummary {
+  id: string;
+  userId: string;
+  mediaId: string;
+  createdAt: string;
+  media?: MediaSummary;
+}
+
+export interface NotificationSummary {
+  id: string;
+  userId: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface SearchFilters {
+  q?: string;
+  category?: string;
+  clubId?: string;
+  startDate?: string;
+  endDate?: string;
+  uploaderId?: string;
+  tag?: string;
+}
+

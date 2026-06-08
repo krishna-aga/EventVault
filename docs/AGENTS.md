@@ -31,10 +31,16 @@ Completed phases:
 * Phase 2 - Authentication and Authorization
 * Phase 3 - Club Management
 * Phase 4 - Event Management
+* Phase 5 - Media Management
+* Phase 6 - Access Control
+* Phase 7 - Social Features
+* Phase 8 - Notifications
+* Phase 9 - Search & Discovery
+* Phase 11 - Cloud Storage (AWS S3)
 
 Current focus:
 
-* Phase 5 - Media Management
+* Phase 10 - AI Features
 
 Upcoming areas:
 
@@ -164,8 +170,8 @@ The best agent behavior for this repo is:
 You can treat this repo as:
 
 * a monorepo with a React frontend, Express backend, Prisma database layer, and shared contracts package
-* a project currently past auth, clubs, and events
-* a codebase where the next major area is media management
+* a project currently past auth, clubs, events, media, access control, social, notifications, search, and S3 integration
+* a codebase where the next major area is AI Features (Phase 10) or Watermarking (Phase 12)
 
 When starting a new task, first identify the exact files needed, then make the smallest safe change.
 

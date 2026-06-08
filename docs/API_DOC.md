@@ -285,3 +285,135 @@ Header:
 ```http
 Authorization: Bearer <accessToken>
 ```
+
+---
+
+## Media (Phases 5-6)
+
+### `POST /media/events/:eventId/media`
+Upload media files under an event album. Supported fields in multipart/form-data:
+* `files` (array of file objects, up to 15 files)
+* `title` (optional string title)
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+### `GET /media/events/:eventId/media`
+List all media files uploaded under a specific event album.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+### `DELETE /media/:mediaId`
+Delete a specific media item.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+---
+
+## Social (Phase 7)
+
+### `POST /media/:mediaId/like`
+Toggle like status on a media item.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+### `GET /media/:mediaId/likes`
+List likes and their total count on a media item.
+
+### `POST /media/:mediaId/comments`
+Post a comment on a media item.
+
+Request body:
+```json
+{
+  "content": "Lovely photo!"
+}
+```
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+### `GET /media/:mediaId/comments`
+List all comments on a media item.
+
+### `DELETE /media/comments/:commentId`
+Delete a specific comment.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+### `POST /media/:mediaId/favourite`
+Toggle saving a media item to favourites.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+### `GET /media/me`
+List all saved (favourited) media items for the current user.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+---
+
+## Notifications (Phase 8)
+
+### `GET /notifications`
+Retrieve all notifications for the logged-in user. Supports WebSocket notifications broadcast.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+### `PATCH /notifications/:notificationId/read`
+Mark a single notification as read.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+### `POST /notifications/read-all`
+Mark all notifications of the current user as read.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+---
+
+## Search & Discovery (Phase 9)
+
+### `GET /search`
+Perform full text search on events matching terms, with filters.
+
+Query params:
+* `q` = text query matching title/description
+* `category` = match category
+* `clubId` = match linked club ID
+* `startDate` = filter events after date
+* `endDate` = filter events before date
+* `uploaderId` = filter by uploader ID
+* `tag` = search by tag name
+
