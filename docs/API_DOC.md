@@ -203,8 +203,8 @@ Request body:
 ```
 
 Approval permissions:
-* `ADMIN` users can review join requests globally.
-* Club members with `ADMIN` role can review join requests for their club.
+* Platform `ADMIN` users (superadmins) can review join requests globally.
+* Club members with `OWNER` or `ADMIN` role can review join requests for their club.
 
 ### `GET /clubs/:clubId/members`
 List club members.
@@ -220,7 +220,7 @@ Request body:
 }
 ```
 
-Only `ADMIN` users can update club member roles.
+Only platform `ADMIN` users (superadmins) and club `OWNER` members can update club member roles.
 
 ### `DELETE /clubs/:clubId/members/:memberId`
 Remove a club member.

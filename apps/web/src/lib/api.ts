@@ -94,7 +94,7 @@ export const api = {
       accessToken,
     ),
   listJoinRequests: (clubId: string, accessToken: string) =>
-    request<{ requests: any[] }>(`/clubs/${clubId}/join-requests`, {}, accessToken),
+    request<{ joinRequests: any[] }>(`/clubs/${clubId}/join-requests`, {}, accessToken),
   reviewJoinRequest: (
     clubId: string,
     requestId: string,
@@ -109,8 +109,8 @@ export const api = {
       },
       accessToken,
     ),
-  listClubMembers: (clubId: string) =>
-    request<{ members: any[] }>(`/clubs/${clubId}/members`),
+  listClubMembers: (clubId: string, accessToken?: string) =>
+    request<{ members: any[] }>(`/clubs/${clubId}/members`, {}, accessToken),
 
   // Events
   listEvents: (filters: EventFilters) => {

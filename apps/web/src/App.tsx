@@ -322,6 +322,31 @@ function App() {
         setNotifications(notifRes.notifications);
         setMediaFavourites(favsRes.favourites.map((f) => f.mediaId));
         setMyClubs(myClubsRes.clubs.map((entry) => entry.club));
+
+        // Fetch members and requests for all clubs so the grid displays correct states
+        const membersMap: Record<string, any[]> = {};
+        const requestsMap: Record<string, any[]> = {};
+        await Promise.all(
+          clubPayload.clubs.map(async (c) => {
+            try {
+              const mRes = await api.listClubMembers(c.id, session.accessToken);
+              membersMap[c.id] = mRes.members;
+            } catch (err) {
+              console.warn("Failed to load members for club", c.id, err);
+              membersMap[c.id] = [];
+            }
+
+            try {
+              const rRes = await api.listJoinRequests(c.id, session.accessToken);
+              requestsMap[c.id] = rRes.joinRequests;
+            } catch (err) {
+              console.warn("Failed to load requests for club", c.id, err);
+              requestsMap[c.id] = [];
+            }
+          })
+        );
+        setClubMembersMap(membersMap);
+        setClubRequestsMap(requestsMap);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load database files");
@@ -352,16 +377,24 @@ function App() {
 
   // Load expanded club members/requests
   const loadClubDetails = async (clubId: string) => {
+    const token = session?.accessToken;
+    
+    // Fetch members list
     try {
-      const membersPayload = await api.listClubMembers(clubId);
+      const membersPayload = await api.listClubMembers(clubId, token);
       setClubMembersMap((prev) => ({ ...prev, [clubId]: membersPayload.members }));
-
-      if (session) {
-        const requestsPayload = await api.listJoinRequests(clubId, session.accessToken);
-        setClubRequestsMap((prev) => ({ ...prev, [clubId]: requestsPayload.requests }));
-      }
     } catch (err) {
-      console.warn("Failed to load club details:", err);
+      console.warn("Failed to load club members:", err);
+    }
+
+    // Fetch join requests
+    if (session) {
+      try {
+        const requestsPayload = await api.listJoinRequests(clubId, session.accessToken);
+        setClubRequestsMap((prev) => ({ ...prev, [clubId]: requestsPayload.joinRequests }));
+      } catch (err) {
+        console.warn("Failed to load club join requests:", err);
+      }
     }
   };
 
@@ -1899,11 +1932,13 @@ function App() {
 
             <div className="clubs-grid">
               {clubs.map((c) => {
-                const isOwner = c.createdById === currentUser.id;
+                const isOwner = c.createdById === currentUser?.id;
                 const membersList = clubMembersMap[c.id] || [];
-                const isMember = membersList.some((m) => m.userId === currentUser.id);
+                const isMember = membersList.some((m) => m.userId === currentUser?.id);
                 const requestsList = clubRequestsMap[c.id] || [];
-                const isPending = requestsList.some((r) => r.userId === currentUser.id && r.status === "PENDING");
+                const isPending = requestsList.some((r) => r.userId === currentUser?.id && r.status === "PENDING");
+                const isRejected = requestsList.some((r) => r.userId === currentUser?.id && r.status === "REJECTED");
+                const isSuperAdmin = currentUser?.role === "ADMIN";
 
                 return (
                   <article
@@ -1931,19 +1966,33 @@ function App() {
                       
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                         {isOwner && <span className="club-membership-badge owner">Owner</span>}
-                        {isMember && !isOwner && <span className="club-membership-badge member">Member</span>}
-                        {isPending && <span className="club-membership-badge pending">Pending</span>}
+                        {isMember && !isOwner && <span className="club-membership-badge member">Joined</span>}
+                        {isPending && <span className="club-membership-badge pending">Request Sent</span>}
+                        {isRejected && (
+                          <span
+                            className="club-membership-badge rejected"
+                            style={{
+                              background: "rgba(239, 68, 68, 0.12)",
+                              color: "#fca5a5",
+                              border: "1px solid rgba(239, 68, 68, 0.2)",
+                            }}
+                          >
+                            Rejected
+                          </span>
+                        )}
                         
-                        <button
-                          type="button"
-                          className={`club-join-btn ${isMember ? "joined" : ""}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleToggleJoinClub(c.id, isMember);
-                          }}
-                        >
-                          {isMember ? "Leave" : isPending ? "Pending" : "Join"}
-                        </button>
+                        {!isSuperAdmin && !isOwner && !isMember && !isPending && !isRejected && (
+                          <button
+                            type="button"
+                            className="club-join-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleToggleJoinClub(c.id, false);
+                            }}
+                          >
+                            Join
+                          </button>
+                        )}
                       </div>
                     </div>
                   </article>
@@ -1960,7 +2009,7 @@ function App() {
                 const clubEvents = events.filter((e) => e.clubId === expandedClubId);
 
                 const currentMembership = members.find((m) => m.userId === currentUser?.id);
-                const isClubAdmin = currentMembership?.role === "ADMIN";
+                const isClubAdmin = currentMembership?.role === "ADMIN" || currentMembership?.role === "OWNER";
                 const isSuperAdmin = currentUser?.role === "ADMIN";
                 const canManage = isSuperAdmin || isClubAdmin;
 
@@ -2024,7 +2073,7 @@ function App() {
                                 <td>
                                   {m.role === "OWNER" ? (
                                     <span>OWNER</span>
-                                  ) : isSuperAdmin ? (
+                                  ) : (isSuperAdmin || currentMembership?.role === "OWNER") ? (
                                     <select
                                       className="form-select"
                                       value={m.role}
@@ -2127,7 +2176,6 @@ function App() {
           </section>
         )}
 
-        {/* PAGE: UPLOAD MEDIA */}
         {view === "upload" && (
           <section id="page-upload">
             <header className="page-header">

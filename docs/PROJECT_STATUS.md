@@ -243,6 +243,4 @@ packages/
 
 ## Last Updated
 
-Phase 10 - AI/ML Integration completed.
-
-Current task: Documentation update and future features planning.
+Phase 12 - Watermarked Downloads & UX Polish completed, including club join request visibilities, superadmin controls, and member role actions updates.

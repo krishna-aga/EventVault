@@ -65,7 +65,7 @@ const assertCanReviewJoinRequests = async (clubId: string, userId: string, role:
 
   const membership = await findClubMembership(userId, clubId);
 
-  if (!membership || membership.role !== "ADMIN") {
+  if (!membership || (membership.role !== "ADMIN" && membership.role !== "OWNER")) {
     throw new ApiError(403, COMMON_MESSAGES.FORBIDDEN);
   }
 
@@ -181,8 +181,25 @@ export const fetchClubJoinRequests = async (
     role: string;
   },
 ) => {
-  await assertCanReviewJoinRequests(clubId, actor.id, actor.role);
-  return listJoinRequests(clubId);
+  try {
+    await assertCanReviewJoinRequests(clubId, actor.id, actor.role);
+    return listJoinRequests(clubId);
+  } catch (error) {
+    // If not an admin/owner, return only their own join requests for this club
+    return prisma.clubJoinRequest.findMany({
+      where: {
+        clubId,
+        userId: actor.id,
+      },
+      include: {
+        user: true,
+        reviewedBy: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  }
 };
 
 export const reviewClubJoinRequest = async (
@@ -267,7 +284,10 @@ export const changeMemberRole = async (
   input: ClubMemberRoleInput,
 ) => {
   if (actor.role !== "ADMIN") {
-    throw new ApiError(403, "Access Denied: Only superadmin can change member roles");
+    const membership = await findClubMembership(actor.id, clubId);
+    if (!membership || membership.role !== "OWNER") {
+      throw new ApiError(403, "Access Denied: Only superadmin or club owner can change member roles");
+    }
   }
 
   await assertClubExists(clubId);
