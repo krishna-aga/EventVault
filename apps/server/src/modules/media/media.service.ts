@@ -21,6 +21,13 @@ import path from "node:path";
 import { detectLabels, generateCaption, searchFaces } from "../../common/services/ai.service.js";
 import { createNotification } from "../notifications/notifications.service.js";
 
+const formatTitleCase = (value: string) =>
+  value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+    .join(" ");
+
 export const uploadEventMedia = async (
   eventId: string,
   files: Express.Multer.File[],
@@ -304,11 +311,13 @@ export const downloadMediaFile = async (mediaId: string, user: UserSummary) => {
 
   const isImage = mediaItem.fileType === "photo";
   if (isImage) {
+    const clubName = mediaItem.event.club?.name || "None";
     const eventTitle = mediaItem.event.title;
-    const clubName = mediaItem.event.club?.name || "Standalone";
-    const watermarkText = `${eventTitle} | Club: ${clubName} | Downloaded by ${user.role} | EventVault`;
-    
-    buffer = await applyWatermark(buffer, watermarkText);
+    const userRole = formatTitleCase(user.role);
+
+    buffer = await applyWatermark(buffer, [
+      `Club: ${clubName} | Event: ${eventTitle} | Role: ${userRole}`,
+    ]);
   }
 
   const fileExt = path.extname(mediaItem.fileUrl) || (isImage ? ".jpg" : ".mp4");

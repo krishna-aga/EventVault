@@ -1,51 +1,85 @@
-import { Jimp } from "jimp";
-import { SANS_16_WHITE, SANS_16_BLACK, SANS_32_WHITE, SANS_32_BLACK, SANS_64_WHITE, SANS_64_BLACK } from "jimp/fonts";
+import sharp from "sharp";
+
+const escapeXml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
 
 /**
- * Applies a text watermark to the given image buffer.
- * If the buffer is not a valid image or Jimp fails, the original buffer is returned.
+ * Applies a small, crisp watermark to an image buffer.
+ * If the buffer is not a valid image or Sharp fails, the original buffer is returned.
  */
 export const applyWatermark = async (
   buffer: Buffer,
-  text: string,
+  text: string | string[],
 ): Promise<Buffer> => {
   try {
-    const jimpAny = Jimp as any;
-    const image = (await jimpAny.read(buffer)) as any;
-    const width = image.bitmap.width;
-    const height = image.bitmap.height;
+    const watermarkText = Array.isArray(text)
+      ? text.map((line) => line.trim()).filter(Boolean).join(" | ")
+      : text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .join(" | ");
 
-    // Load appropriate font based on image width
-    let fontPath = SANS_16_WHITE;
-    let shadowFontPath = SANS_16_BLACK;
-
-    if (width > 1200) {
-      fontPath = SANS_64_WHITE;
-      shadowFontPath = SANS_64_BLACK;
-    } else if (width > 600) {
-      fontPath = SANS_32_WHITE;
-      shadowFontPath = SANS_32_BLACK;
+    if (!watermarkText) {
+      return buffer;
     }
 
-    const [font, shadowFont] = await Promise.all([
-      jimpAny.loadFont(fontPath),
-      jimpAny.loadFont(shadowFontPath),
-    ]);
+    const image = sharp(buffer);
+    const metadata = await image.metadata();
+    const width = metadata.width ?? 0;
+    const height = metadata.height ?? 0;
+    if (!width || !height) {
+      return buffer;
+    }
 
-    // Calculate watermark position (bottom center or bottom right)
-    const textWidth = jimpAny.measureText(font, text);
-    
-    // Position at bottom-right corner with 20px padding
-    const x = Math.max(20, width - textWidth - 30);
-    const y = Math.max(20, height - 50);
+    const fontSize = width >= 1600 ? 14 : width >= 1000 ? 12 : 10;
+    const paddingX = 8;
+    const paddingY = 5;
+    const margin = 8;
+    const approxCharWidth = fontSize * 0.58;
+    const textWidth = Math.ceil(watermarkText.length * approxCharWidth);
+    const textHeight = Math.ceil(fontSize * 1.35);
+    const boxWidth = textWidth + paddingX * 2;
+    const boxHeight = textHeight + paddingY * 2;
 
-    // Render shadow for contrast
-    image.print({ font: shadowFont, x: x + 2, y: y + 2, text });
-    // Render main white text
-    image.print({ font, x, y, text });
+    const svg = Buffer.from(`
+      <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+        <rect
+          x="${Math.max(0, width - boxWidth - margin)}"
+          y="${Math.max(0, height - boxHeight - margin)}"
+          width="${boxWidth}"
+          height="${boxHeight}"
+          rx="4"
+          ry="4"
+          fill="rgba(255,255,255,0.78)"
+          stroke="rgba(0,0,0,0.18)"
+          stroke-width="1"
+        />
+        <text
+          x="${Math.max(0, width - boxWidth - margin + paddingX)}"
+          y="${Math.max(fontSize + 2, height - boxHeight - margin + paddingY + fontSize)}"
+          font-family="Arial, Helvetica, sans-serif"
+          font-size="${fontSize}"
+          font-weight="600"
+          fill="rgba(0,0,0,0.9)"
+        >${escapeXml(watermarkText)}</text>
+      </svg>
+    `);
 
-    const mime = image.mime || "image/jpeg";
-    return await image.getBufferAsync(mime);
+    return await image
+      .composite([
+        {
+          input: svg,
+          left: 0,
+          top: 0,
+        },
+      ])
+      .toBuffer();
   } catch (error) {
     console.error("Failed to apply watermark, returning original buffer:", error);
     return buffer;

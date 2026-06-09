@@ -364,6 +364,11 @@ Authorization: Bearer <accessToken>
 ### `GET /media/:mediaId/download`
 Retrieve binary buffer of a media item. Dynamically overlays custom-styled text watermark if it's an image.
 
+The image watermark includes:
+* Club name
+* Event name
+* User role
+
 Header:
 ```http
 Authorization: Bearer <accessToken>
@@ -485,4 +490,3 @@ Query params:
 * `endDate` = filter events before date
 * `uploaderId` = filter by uploader ID
 * `tag` = search by tag name
-
