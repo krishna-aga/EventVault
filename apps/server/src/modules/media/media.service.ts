@@ -1,5 +1,5 @@
 import { ApiError } from "../../common/errors/ApiError.js";
-import { uploadFile, deleteFile } from "../../common/services/storage.service.js";
+import { uploadFile, deleteFile, signFileUrl } from "../../common/services/storage.service.js";
 import {
   findEventById,
   findClubMember,
@@ -72,7 +72,13 @@ export const uploadEventMedia = async (
     });
   });
 
-  return Promise.all(uploadPromises);
+  const mediaItems = await Promise.all(uploadPromises);
+  return Promise.all(
+    mediaItems.map(async (item) => ({
+      ...item,
+      fileUrl: await signFileUrl(item.fileUrl),
+    }))
+  );
 };
 
 export const getEventMedia = async (eventId: string, user: UserSummary) => {
@@ -92,7 +98,13 @@ export const getEventMedia = async (eventId: string, user: UserSummary) => {
     }
   }
 
-  return findMediaByEventId(eventId);
+  const mediaItems = await findMediaByEventId(eventId);
+  return Promise.all(
+    mediaItems.map(async (item) => ({
+      ...item,
+      fileUrl: await signFileUrl(item.fileUrl),
+    }))
+  );
 };
 
 export const deleteMedia = async (mediaId: string, user: UserSummary) => {

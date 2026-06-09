@@ -1,4 +1,5 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { PutObjectCommand, GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../../config/env.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -115,4 +116,29 @@ export const deleteFile = async (fileUrl: string): Promise<void> => {
       console.error("Failed to delete local file:", error);
     }
   }
+};
+
+export const signFileUrl = async (fileUrl: string): Promise<string> => {
+  if (!fileUrl) return fileUrl;
+
+  // If local static path, don't sign
+  if (!fileUrl.startsWith("http://") && !fileUrl.startsWith("https://")) {
+    return fileUrl;
+  }
+
+  if (isS3Configured() && fileUrl.includes(".amazonaws.com/")) {
+    try {
+      const filename = path.basename(fileUrl);
+      const client = getS3Client();
+      const command = new GetObjectCommand({
+        Bucket: env.awsS3BucketName,
+        Key: filename,
+      });
+      return await getSignedUrl(client, command, { expiresIn: 3600 });
+    } catch (error) {
+      console.warn("Failed to generate S3 presigned URL:", error);
+    }
+  }
+
+  return fileUrl;
 };
