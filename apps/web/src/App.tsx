@@ -352,7 +352,6 @@ function App() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load database files");
-      triggerToast("Error connecting to server database", "warn");
     } finally {
       setLoading(false);
     }
