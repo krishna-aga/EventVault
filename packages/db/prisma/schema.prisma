@@ -235,6 +235,7 @@ model Media {
   aiTags          String[] @default([])
   aiCaption       String?
   pHash           String?
+  category        String?
 }
 
 model Comment {

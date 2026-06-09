@@ -1,7 +1,15 @@
 import type { RequestHandler } from "express";
 import { ApiError } from "../../common/errors/ApiError.js";
 import { sendSuccess } from "../../common/utils/response.js";
-import { uploadEventMedia, getEventMedia, deleteMedia, getTaggedMedia } from "./media.service.js";
+import {
+  uploadEventMedia,
+  getEventMedia,
+  deleteMedia,
+  getTaggedMedia,
+  getUserUploadedMedia,
+  analyzeUploadedFile,
+  downloadMediaFile,
+} from "./media.service.js";
 import { parseMediaUploadBody } from "./media.schema.js";
 
 export const uploadMedia: RequestHandler = async (req, res, next) => {
@@ -15,7 +23,6 @@ export const uploadMedia: RequestHandler = async (req, res, next) => {
       throw new ApiError(400, "Event ID is required");
     }
 
-    // Support single file in req.file or multiple in req.files
     let files: Express.Multer.File[] = [];
     if (req.files) {
       files = req.files as Express.Multer.File[];
@@ -28,7 +35,7 @@ export const uploadMedia: RequestHandler = async (req, res, next) => {
     }
 
     const body = parseMediaUploadBody(req.body);
-    const result = await uploadEventMedia(eventId, files, req.user as any, body.title);
+    const result = await uploadEventMedia(eventId, files, req.user as any, body.title, body.metadata);
 
     sendSuccess(res, "Media uploaded successfully", result, 201);
   } catch (error) {
@@ -80,6 +87,57 @@ export const listTaggedMedia: RequestHandler = async (req, res, next) => {
 
     const result = await getTaggedMedia(req.user as any);
     sendSuccess(res, "Tagged media files loaded successfully", { media: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const listUserMedia: RequestHandler = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    const result = await getUserUploadedMedia(req.user.id);
+    sendSuccess(res, "User uploaded media loaded successfully", { media: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const analyzeMedia: RequestHandler = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    if (!req.file) {
+      throw new ApiError(400, "File is required for analysis");
+    }
+
+    const result = await analyzeUploadedFile(req.file);
+    sendSuccess(res, "Media analyzed successfully", result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const downloadMedia: RequestHandler = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    const mediaId = req.params.mediaId as string;
+    if (!mediaId) {
+      throw new ApiError(400, "Media ID is required");
+    }
+
+    const { buffer, filename, mimeType } = await downloadMediaFile(mediaId, req.user as any);
+    
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Type", mimeType);
+    res.send(buffer);
   } catch (error) {
     next(error);
   }

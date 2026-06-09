@@ -228,7 +228,15 @@ export const changeMemberRole = async (
   },
   input: ClubMemberRoleInput,
 ) => {
-  await assertCanManageClub(clubId, actor.id, actor.role);
+  const isSuperAdmin = actor.role === "ADMIN";
+  const club = await assertClubExists(clubId);
+  const isOwner = club.createdById === actor.id;
+  const actorMembership = await findClubMembership(actor.id, clubId);
+  const isClubOwner = actorMembership?.role === "OWNER";
+
+  if (!isSuperAdmin && !isOwner && !isClubOwner) {
+    throw new ApiError(403, "Access Denied: Only the club owner or superadmin can change member roles");
+  }
 
   const member = await findClubMembershipById(memberId, clubId);
 

@@ -2,6 +2,7 @@ import { ApiError } from "../../common/errors/ApiError.js";
 
 export interface MediaUploadInput {
   title?: string;
+  metadata?: string;
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -18,7 +19,13 @@ export const parseMediaUploadBody = (input: unknown): MediaUploadInput => {
     throw new ApiError(400, "Title must be a string");
   }
 
+  const metadata = input.metadata;
+  if (metadata !== undefined && typeof metadata !== "string") {
+    throw new ApiError(400, "Metadata must be a string");
+  }
+
   return {
     title: title?.trim(),
+    metadata: metadata?.trim(),
   };
 };

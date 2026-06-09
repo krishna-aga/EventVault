@@ -118,6 +118,30 @@ export const deleteFile = async (fileUrl: string): Promise<void> => {
   }
 };
 
+export const downloadFileBuffer = async (fileUrl: string): Promise<Buffer> => {
+  const filename = path.basename(fileUrl);
+  if (isS3Configured() && fileUrl.includes(".amazonaws.com/")) {
+    const client = getS3Client();
+    const command = new GetObjectCommand({
+      Bucket: env.awsS3BucketName,
+      Key: filename,
+    });
+    const response = await client.send(command);
+    const responseBody = response.Body;
+    if (responseBody) {
+      const chunks: any[] = [];
+      for await (const chunk of responseBody as any) {
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks);
+    }
+    throw new Error("Empty body from S3");
+  }
+
+  const localFilePath = path.join(LOCAL_UPLOAD_DIR, filename);
+  return await fs.promises.readFile(localFilePath);
+};
+
 export const signFileUrl = async (fileUrl: string): Promise<string> => {
   if (!fileUrl) return fileUrl;
 

@@ -79,6 +79,9 @@ export const getClubHandler: RequestHandler = async (req, res, next) => {
 export const createClubHandler: RequestHandler = async (req, res, next) => {
   try {
     const user = requireUser(req);
+    if (user.role !== "ADMIN") {
+      throw new ApiError(403, "Access Denied: Only superadmin can create clubs");
+    }
     const club = await addClub(req.body, user.id);
     sendSuccess(res, CLUB_MESSAGES.CREATED, { club }, 201);
   } catch (error) {
@@ -109,6 +112,9 @@ export const deleteClubHandler: RequestHandler = async (req, res, next) => {
 export const createJoinRequestHandler: RequestHandler = async (req, res, next) => {
   try {
     const user = requireUser(req);
+    if (user.role === "VIEWER") {
+      throw new ApiError(403, "Access Denied: Viewers cannot join clubs");
+    }
     const joinRequest = await requestJoinClub(user.id, readClubId(req));
     sendSuccess(res, CLUB_MESSAGES.JOIN_REQUEST_CREATED, { joinRequest }, 201);
   } catch (error) {

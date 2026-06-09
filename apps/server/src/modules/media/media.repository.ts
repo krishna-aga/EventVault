@@ -77,6 +77,48 @@ export const findMediaByEventId = (eventId: string) => {
           profileImage: true,
         },
       },
+      tags: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      uploadedAt: "desc",
+    },
+  });
+};
+
+export const findMediaByUploadedById = (uploadedById: string) => {
+  return prisma.media.findMany({
+    where: { uploadedById },
+    include: {
+      uploader: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          profileImage: true,
+        },
+      },
+      tags: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
     },
     orderBy: {
       uploadedAt: "desc",
@@ -115,9 +157,21 @@ export const findMediaByTagUserId = (userId: string) => {
           profileImage: true,
         },
       },
+      tags: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
     },
     orderBy: {
       uploadedAt: "desc",
     },
   });
 };
+

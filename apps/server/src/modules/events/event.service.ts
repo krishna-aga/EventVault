@@ -89,6 +89,10 @@ export const fetchEvent = async (eventId: string) => {
 };
 
 export const addEvent = async (input: EventInput, actor: Actor) => {
+  if (actor.role === "VIEWER") {
+    throw new ApiError(403, "Access Denied: Viewers cannot create events");
+  }
+
   await ensureClubOwnershipForCreate(input, actor);
 
   const event = await createEvent({

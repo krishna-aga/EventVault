@@ -159,11 +159,15 @@ export const api = {
     files: File[],
     title: string | undefined,
     accessToken: string,
+    metadata?: string,
   ): Promise<MediaSummary[]> => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
     if (title) {
       formData.append("title", title);
+    }
+    if (metadata) {
+      formData.append("metadata", metadata);
     }
 
     const response = await fetch(`${API_BASE_URL}/media/events/${eventId}/media`, {
@@ -278,4 +282,47 @@ export const api = {
 
     return payload.data;
   },
+
+  analyzeMedia: async (file: File, accessToken: string): Promise<{ tags: string[]; caption: string; people: UserSummary[] }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API_BASE_URL}/media/analyze`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: formData,
+    });
+
+    const payload = (await response.json()) as ApiResponse<{ tags: string[]; caption: string; people: UserSummary[] }> | { success: false; message: string };
+
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.message);
+    }
+
+    return payload.data;
+  },
+
+  listUserMedia: (accessToken: string) =>
+    request<{ media: MediaSummary[] }>("/media/me/uploads", {}, accessToken),
+
+  updateMemberRole: (clubId: string, memberId: string, role: string, accessToken: string) =>
+    request<any>(
+      `/clubs/${clubId}/members/${memberId}/role`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      },
+      accessToken,
+    ),
+
+  removeMember: (clubId: string, memberId: string, accessToken: string) =>
+    request<any>(
+      `/clubs/${clubId}/members/${memberId}`,
+      {
+        method: "DELETE",
+      },
+      accessToken,
+    ),
 };

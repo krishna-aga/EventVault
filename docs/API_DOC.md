@@ -306,6 +306,7 @@ Authorization: Bearer <accessToken>
 Upload media files under an event album. Supported fields in multipart/form-data:
 * `files` (array of file objects, up to 15 files)
 * `title` (optional string title)
+* `metadata` (optional JSON string metadata array containing custom captions, tags, and category per-file)
 
 Header:
 ```http
@@ -325,6 +326,43 @@ Delete a specific media item.
 
 ### `GET /media/tagged`
 Retrieve all media items where the logged-in user has been tagged via facial recognition matching.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+### `POST /media/analyze`
+Analyze a single media file to generate AI tag recommendations, Gemini captions, and face recognition tag matching.
+Multipart/form-data field:
+* `file` (single image/video file)
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+Response data:
+```json
+{
+  "tags": ["concert", "stage"],
+  "caption": "A vibrant concert crowd",
+  "people": [
+    { "id": "user-123", "name": "Aarav", "email": "aarav@example.com" }
+  ]
+}
+```
+
+### `GET /media/me/uploads`
+Retrieve all media items uploaded by the current user.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+### `GET /media/:mediaId/download`
+Retrieve binary buffer of a media item. Dynamically overlays custom-styled text watermark if it's an image.
 
 Header:
 ```http

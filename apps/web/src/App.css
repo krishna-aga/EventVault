@@ -1752,3 +1752,19 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* Custom Profile & Drag Drop Styles */
+.profile-avatar-container:hover .profile-avatar-overlay-hover {
+  opacity: 1 !important;
+}
+
+.drag-drop-zone:hover {
+  border-color: var(--accent-primary) !important;
+  background: rgba(99, 102, 241, 0.05) !important;
+}
+
+.upload-preview-card:hover {
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.08);
+}
+

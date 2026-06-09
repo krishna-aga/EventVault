@@ -252,6 +252,7 @@ Represents uploaded photos or videos.
 | aiTags | String[] |
 | aiCaption | String? |
 | pHash | String? |
+| category | String? |
 
 ### Comment
 

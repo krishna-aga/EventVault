@@ -38,15 +38,13 @@ Completed phases:
 * Phase 9 - Search & Discovery
 * Phase 10 - AI/ML Features
 * Phase 11 - Cloud Storage (AWS S3)
+* Phase 12 - Watermarking (Implemented: uses Jimp to dynamically watermark downloads for `VIEWER` users. Clean files are kept; downloads endpoint is `/api/media/:mediaId/download`. Viewer role is served signed watermark URLs, restricted from creating events/clubs, and restricted from uploading media.)
 
-Current focus:
+Recent Hotfixes:
+* Moved the Category select dropdown from the Media Upload preview card section to the Event Creation modal. Category draft default value is now "Concert".
 
-* Phase 12 - Watermarking
-
-Upcoming areas:
-
-* Watermarking
-* Media delivery CDN support
+Terminal Limitations:
+* Workspace-wide check-types/builds might be slow or timeout in this terminal environment. Prefer checking changes package-specifically or utilizing incremental compilation where supported.
 
 ## 4. Architecture
 
@@ -54,14 +52,14 @@ Backend:
 
 * Express
 * TypeScript
-* Prisma Client for database access
+* Prisma Client for database access (Neon PostgreSQL)
 
 Frontend:
 
 * React
 * TypeScript
 * Vite
-* Custom EventVault dashboard, not a starter template look
+* Custom EventVault glassmorphic dashboard (dark theme)
 
 Shared code:
 
@@ -80,6 +78,8 @@ Backend:
 * `apps/server/src/modules/auth`
 * `apps/server/src/modules/clubs`
 * `apps/server/src/modules/events`
+* `apps/server/src/modules/media` (Includes `media.service.ts`, `media.controller.ts`, and download endpoint)
+* `apps/server/src/common/utils/watermark.util.ts` (Jimp watermark drawing logic)
 * `apps/server/src/docs/API_DOC.md`
 
 Frontend:
@@ -103,6 +103,7 @@ Docs:
 * `docs/PROJECT_ROADMAP.md`
 * `docs/PROJECT_STATUS.md`
 * `docs/DATABASE_SCHEMA.md`
+* `docs/AGENTS.md`
 
 ## 6. Working Rules
 
@@ -127,8 +128,8 @@ Docs:
 1. Identify the exact files that need to change.
 2. Read only those files.
 3. Make a brief plan if the task is non-trivial.
-5. Update docs only if the feature or the user requested it.
-6. Verify with the lightest useful check, such as typecheck or build for the affected package.
+4. Update docs only if the feature or the user requested it.
+5. Verify with the lightest useful check, such as typecheck or build for the affected package.
 
 ## 9. Documentation Rules
 
@@ -163,11 +164,15 @@ The best agent behavior for this repo is:
 
 ## 12. Suggested Prompt To Continue Work
 
-You can treat this repo as:
+You are handed off a monorepo platform EventVault.
+- Frontend React is under `apps/web`, backend Express is under `apps/server`.
+- Prisma database uses Neon DB with schema in `packages/db/prisma/schema.prisma`.
+- Phase 12 Watermarking is complete.
+- The Category Dropdown menu hotfix has been completed: it is removed from the bulk upload page preview grid, and integrated as a `<select>` dropdown inside the Event Creation/Edit Modal mapping over `CATEGORIES` (excluding "all").
+- The default category draft starts as `"Concert"`.
 
-* a monorepo with a React frontend, Express backend, Prisma database layer, and shared contracts package
-* a project currently past auth, clubs, events, media, access control, social, notifications, search, S3 integration, and AI/ML features
-* a codebase where the next major area is Watermarking (Phase 12)
+To continue:
+1. Start the development server (`pnpm dev`) if the environment allows.
+2. Validate UI event creation behavior and ensure the Category dropdown persists the selected category correctly.
 
-When starting a new task, first identify the exact files needed, then make the smallest safe change.
 

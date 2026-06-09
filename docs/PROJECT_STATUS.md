@@ -10,7 +10,7 @@ The platform enables clubs, photographers, organizers, and members to upload, or
 
 ## Current Development Stage
 
-Phase 10 - AI/ML Integration
+Phase 12 - Watermarked Downloads & UX Polish
 
 Status: Completed
 
@@ -176,6 +176,14 @@ packages/
 ### Cloud Features (Phase 11)
 
 * [x] AWS S3 file upload integration with automatic static local folder fallback
+
+### Watermarking & UX Enhancements (Phase 12)
+
+* [x] Dynamic text watermark overlay using Jimp on media download
+* [x] Drag-and-drop bulk file upload zone with live AI analysis previews
+* [x] Dual-column Instagram-style media viewer popup (likes, bookmarks, comments, video, download)
+* [x] Viewer role guards and view restrictions
+* [x] Club Console member roles updating (Owners/Superadmin) and member removal (Admins/Superadmin)
 
 ---
 

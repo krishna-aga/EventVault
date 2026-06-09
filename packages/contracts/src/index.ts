@@ -85,6 +85,16 @@ export interface MediaSummary {
   aiTags?: string[];
   aiCaption?: string | null;
   pHash?: string | null;
+  category?: string | null;
+  tags?: {
+    id: string;
+    userId: string;
+    user?: {
+      id: string;
+      name: string;
+      email: string;
+    };
+  }[];
 }
 
 export interface CommentSummary {

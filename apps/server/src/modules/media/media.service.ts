@@ -1,5 +1,7 @@
 import { ApiError } from "../../common/errors/ApiError.js";
-import { uploadFile, deleteFile, signFileUrl } from "../../common/services/storage.service.js";
+import { uploadFile, deleteFile, signFileUrl, downloadFileBuffer } from "../../common/services/storage.service.js";
+import { prisma } from "@repo/db";
+import { applyWatermark } from "../../common/utils/watermark.util.js";
 import {
   findEventById,
   findClubMember,
@@ -11,6 +13,7 @@ import {
   findMediaByHash,
   createMediaTag,
   findMediaByTagUserId,
+  findMediaByUploadedById,
 } from "./media.repository.js";
 import type { UserSummary } from "@repo/contracts";
 import crypto from "node:crypto";
@@ -23,14 +26,18 @@ export const uploadEventMedia = async (
   files: Express.Multer.File[],
   user: UserSummary,
   title?: string,
+  metadata?: string,
 ) => {
+  if (user.role === "VIEWER") {
+    throw new ApiError(403, "Access Denied: Viewers cannot upload media");
+  }
+
   const event = await findEventById(eventId);
   if (!event) {
     throw new ApiError(404, "Event not found");
   }
 
   // Phase 6: Access Control checks
-  // If the event is PRIVATE, only members of the attached club can access/upload.
   if (event.visibility === "PRIVATE") {
     if (!event.clubId) {
       throw new ApiError(403, "Private event must belong to a club");
@@ -41,17 +48,10 @@ export const uploadEventMedia = async (
     }
   }
 
-  // Upload Permission: only Photographer, Club Member, or Admin can upload
-  // Wait, if it belongs to a club, only members of that club can upload.
   if (event.clubId) {
     const isMember = await findClubMember(user.id, event.clubId);
     if (!isMember && user.role !== "ADMIN") {
       throw new ApiError(403, "Access Denied: You must be a member of the club to upload media under its events");
-    }
-  } else {
-    // Standalone event: only creator or photographer/admin can upload
-    if (event.createdById !== user.id && user.role === "VIEWER") {
-      throw new ApiError(403, "Access Denied: Viewers cannot upload media under standalone events");
     }
   }
 
@@ -59,12 +59,22 @@ export const uploadEventMedia = async (
     throw new ApiError(400, "No files provided for upload");
   }
 
-  // Phase 10: Duplicate Image Detection (SHA-256 hash check)
+  // Duplicate Image Detection (SHA-256 hash check)
   for (const file of files) {
     const hash = crypto.createHash("sha256").update(file.buffer).digest("hex");
     const existingMedia = await findMediaByHash(hash);
     if (existingMedia) {
       throw new ApiError(409, `Duplicate file detected: "${file.originalname}" has already been uploaded.`);
+    }
+  }
+
+  // Parse metadata if provided
+  let metaArray: any[] = [];
+  if (metadata) {
+    try {
+      metaArray = JSON.parse(metadata);
+    } catch (err) {
+      console.warn("Failed to parse upload metadata:", err);
     }
   }
 
@@ -74,44 +84,53 @@ export const uploadEventMedia = async (
     eventId: event.id,
   });
 
-  const uploadPromises = files.map(async (file) => {
+  const uploadPromises = files.map(async (file, index) => {
     const hash = crypto.createHash("sha256").update(file.buffer).digest("hex");
     const result = await uploadFile(file);
 
     let labels: string[] = [];
     let caption: string | null = null;
     let matchedUserIds: string[] = [];
+    let category: string | null = null;
 
-    // Execute AI pipeline if uploaded to S3
-    if (result.fileUrl.includes(".amazonaws.com/")) {
-      try {
-        const s3Key = path.basename(result.fileUrl);
-
-        // 1. Smart Image Tagging
-        labels = await detectLabels(s3Key);
-
-        // 2. AI Captioning
-        caption = await generateCaption(labels);
-
-        // 3. Facial Recognition / Face Search
-        matchedUserIds = await searchFaces(s3Key);
-      } catch (err) {
-        console.error("AI Operations failed for uploaded file:", file.originalname, err);
+    const fileMeta = metaArray[index];
+    if (fileMeta) {
+      labels = fileMeta.tags || [];
+      caption = fileMeta.caption || null;
+      category = fileMeta.category || null;
+      matchedUserIds = fileMeta.peopleIds || [];
+    } else {
+      // Execute AI pipeline if S3 is configured
+      if (result.fileUrl.includes(".amazonaws.com/")) {
+        try {
+          const s3Key = path.basename(result.fileUrl);
+          labels = await detectLabels(s3Key);
+          caption = await generateCaption(labels);
+          matchedUserIds = await searchFaces(s3Key);
+        } catch (err) {
+          console.error("AI Operations failed for uploaded file:", file.originalname, err);
+        }
       }
     }
 
-    const media = await createMedia({
-      title: title || file.originalname,
-      fileUrl: result.fileUrl,
-      thumbnailUrl: result.thumbnailUrl,
-      fileType: result.fileType,
-      fileSize: result.fileSize,
-      uploadedById: user.id,
-      eventId: event.id,
-      batchId: batch.id,
-      pHash: hash,
-      aiTags: labels,
-      aiCaption: caption,
+    const media = await prisma.media.create({
+      data: {
+        title: fileMeta?.caption || title || file.originalname,
+        fileUrl: result.fileUrl,
+        thumbnailUrl: result.thumbnailUrl,
+        fileType: result.fileType,
+        fileSize: result.fileSize,
+        uploadedById: user.id,
+        eventId: event.id,
+        batchId: batch.id,
+        pHash: hash,
+        aiTags: labels,
+        aiCaption: caption,
+        category: category,
+      },
+      include: {
+        uploader: true,
+      },
     });
 
     // Create database tags and trigger notifications for matched users
@@ -119,8 +138,6 @@ export const uploadEventMedia = async (
       for (const matchedUserId of matchedUserIds) {
         try {
           await createMediaTag(media.id, matchedUserId);
-
-          // Trigger a notification
           await createNotification(
             matchedUserId,
             `You have been tagged in a new photo uploaded under the event "${event.title}"!`
@@ -209,4 +226,101 @@ export const getTaggedMedia = async (user: UserSummary) => {
       fileUrl: await signFileUrl(item.fileUrl),
     }))
   );
+};
+
+export const getUserUploadedMedia = async (userId: string) => {
+  const mediaItems = await findMediaByUploadedById(userId);
+  return Promise.all(
+    mediaItems.map(async (item) => ({
+      ...item,
+      fileUrl: await signFileUrl(item.fileUrl),
+    }))
+  );
+};
+
+export const analyzeUploadedFile = async (file: Express.Multer.File) => {
+  const result = await uploadFile(file);
+  
+  let labels: string[] = [];
+  let caption: string | null = null;
+  let matchedUserIds: string[] = [];
+  let matchedUsers: { id: string; name: string; email: string }[] = [];
+
+  if (result.fileUrl.includes(".amazonaws.com/")) {
+    try {
+      const s3Key = path.basename(result.fileUrl);
+      labels = await detectLabels(s3Key);
+      caption = await generateCaption(labels);
+      matchedUserIds = await searchFaces(s3Key);
+    } catch (err) {
+      console.error("AI Analysis error during preview analyze:", err);
+    }
+  } else {
+    // Local fallback recommendations
+    labels = ["local", "preview"];
+    caption = "A great event capture.";
+  }
+
+  if (matchedUserIds.length > 0) {
+    const users = await prisma.user.findMany({
+      where: {
+        id: { in: matchedUserIds }
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true
+      }
+    });
+    matchedUsers = users;
+  }
+
+  await deleteFile(result.fileUrl);
+
+  return {
+    tags: labels,
+    caption,
+    people: matchedUsers,
+  };
+};
+
+export const downloadMediaFile = async (mediaId: string, user: UserSummary) => {
+  const mediaItem = await findMediaById(mediaId);
+  if (!mediaItem) {
+    throw new ApiError(404, "Media item not found");
+  }
+
+  if (mediaItem.event.visibility === "PRIVATE") {
+    if (!mediaItem.event.clubId) {
+      throw new ApiError(403, "Private event must belong to a club");
+    }
+    const isMember = await findClubMember(user.id, mediaItem.event.clubId);
+    if (!isMember && user.role !== "ADMIN") {
+      throw new ApiError(403, "Access Denied: You must be a member of the club to download private event media");
+    }
+  }
+
+  let buffer = await downloadFileBuffer(mediaItem.fileUrl);
+
+  const isImage = mediaItem.fileType === "photo";
+  if (isImage) {
+    const eventTitle = mediaItem.event.title;
+    const clubName = mediaItem.event.club?.name || "Standalone";
+    const watermarkText = `${eventTitle} | Club: ${clubName} | Downloaded by ${user.role} | EventVault`;
+    
+    buffer = await applyWatermark(buffer, watermarkText);
+  }
+
+  const fileExt = path.extname(mediaItem.fileUrl) || (isImage ? ".jpg" : ".mp4");
+  const filename = mediaItem.title
+    ? `${mediaItem.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}${fileExt}`
+    : `download_${mediaId}${fileExt}`;
+
+  const mimeType = isImage ? "image/jpeg" : "video/mp4";
+
+  return {
+    buffer,
+    filename,
+    mimeType,
+  };
 };

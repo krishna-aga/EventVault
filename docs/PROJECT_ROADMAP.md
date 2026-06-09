@@ -202,14 +202,14 @@ Status: Completed
 
 ## Phase 12 - Watermarking
 
-Status: Future
+Status: Completed
 
 ### Features
 
-* [ ] Dynamic watermark
-* [ ] Club watermark
-* [ ] Event watermark
-* [ ] Role-based watermark
+* [x] Dynamic watermark
+* [x] Club watermark
+* [x] Event watermark
+* [x] Role-based watermark
 
 ---
 
@@ -230,8 +230,7 @@ Status: Future / Partial
 
 ## Current Focus
 
-1. Phase 12 - Watermarking
-2. Media delivery CDN support
+1. Optimizing media delivery via CDN distribution networks
 
 ---
 
