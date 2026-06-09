@@ -1,4 +1,4 @@
-import { prisma } from "../packages/db/src/index.js";
+import { prisma } from "@repo/db";
 import { pbkdf2Sync, randomBytes } from "node:crypto";
 import dotenv from "dotenv";
 

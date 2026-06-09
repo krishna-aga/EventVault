@@ -114,6 +114,7 @@ packages/
 * [x] Prisma client generated
 * [x] Database schema pushed to Neon
 * [x] Prisma Studio verified
+* [x] Superadmin seed account deployed via server migration script
 
 ### Shared Database Package
 

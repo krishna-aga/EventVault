@@ -116,6 +116,12 @@ Open Prisma Studio:
 npx prisma studio
 ```
 
+Deploy Superadmin Account:
+
+```bash
+pnpm --filter server db:seed:superadmin
+```
+
 ---
 
 ## Development
