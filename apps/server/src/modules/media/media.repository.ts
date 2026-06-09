@@ -54,6 +54,7 @@ export const findMediaById = (id: string) => {
           club: true,
         },
       },
+      tags: true,
     },
   });
 };

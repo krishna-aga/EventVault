@@ -144,8 +144,8 @@ Status: Completed
 
 ### Features
 
-* [x] Like notifications
-* [x] Comment notifications
+* [x] Like notifications (notifies photo uploader and tagged users)
+* [x] Comment notifications (notifies photo uploader and tagged users)
 * [x] Tag notifications
 
 ### Technology
@@ -183,6 +183,7 @@ Status: Completed
 * [x] Upload reference selfie (facial print indexed in Rekognition collection)
 * [x] Face matching (photographer upload comparisons)
 * [x] Personal gallery (Tagged Photos tab in user Profile view)
+* [x] Retroactive archive scanner (scanning existing event photos for matches)
 
 ---
 

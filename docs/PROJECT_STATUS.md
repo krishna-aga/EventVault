@@ -171,6 +171,7 @@ packages/
 * [x] AI search by tags (matching auto-generated tags array)
 * [x] Face prints calibration selfie widget (POST /auth/selfie)
 * [x] Auto facial recognition and photographer auto-tagging
+* [x] Retroactive archive scanner with face search matching and personal album updates
 * [x] AI caption generation using Google Gemini (with AWS Rekognition fallback)
 * [x] SHA-256 buffer hash exact duplicate blocking
 
@@ -216,7 +217,8 @@ packages/
 ### AI Features
 
 * Smart image tagging (Completed)
-* Facial recognition (Completed)
+* Facial recognition & photographer auto-tagging (Completed)
+* Retroactive archive scan (Completed)
 * Personalized gallery (Completed)
 * Advanced search improvements (Completed)
 

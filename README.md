@@ -7,6 +7,7 @@ EventVault is a modern, AI-powered Event & Media Management Platform built using
 * **Smart Image Tagging**: Automatically detects category labels using AWS Rekognition upon photographer upload.
 * **AI Search**: Search events and media files by exact or auto-generated AI labels.
 * **Facial Recognition Auto-Tagging**: Users can calibrate their Face ID by uploading a reference selfie. Any photo matching their face print during upload triggers real-time WebSocket notifications and automatically links them.
+* **Retroactive Photo Matching**: Allows users to scan the entire S3 event photo archive retroactively to find and tag photos containing their face using their reference selfie.
 * **AI Caption Generation**: Generates engaging, social-friendly image summaries and descriptions powered by Google Gemini (with AWS label fallback).
 * **Exact Duplicate Upload Blocker**: Prevents redundant uploads by calculating a SHA-256 buffer hash of image files and matching them.
 * **Dynamic Watermarked Downloads (Phase 12)**: Original clean images and videos are kept securely in storage. When users click download, the server dynamically overlays a custom text watermark with the club name, event name, and user role before sending the file.

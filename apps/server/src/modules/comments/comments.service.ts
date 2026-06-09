@@ -25,15 +25,27 @@ export const addComment = async (
 
   const comment = await createComment(user.id, mediaId, content.trim());
 
-  // Trigger notification if uploader is not the commenter
+  // Notify uploader and tagged users (excluding the commenter)
+  const recipients = new Set<string>();
   if (mediaItem.uploadedById !== user.id) {
+    recipients.add(mediaItem.uploadedById);
+  }
+  if (mediaItem.tags) {
+    for (const tag of mediaItem.tags) {
+      if (tag.userId !== user.id) {
+        recipients.add(tag.userId);
+      }
+    }
+  }
+
+  for (const recipientId of recipients) {
     try {
-      await createNotification(
-        mediaItem.uploadedById,
-        `${user.name} commented on your media file: "${content.substring(0, 30)}${content.length > 30 ? "..." : ""}"`
-      );
+      const message = recipientId === mediaItem.uploadedById
+        ? `${user.name} commented on your media file: "${content.substring(0, 30)}${content.length > 30 ? "..." : ""}"`
+        : `${user.name} commented on a photo you are tagged in: "${content.substring(0, 30)}${content.length > 30 ? "..." : ""}"`;
+      await createNotification(recipientId, message);
     } catch (err) {
-      console.error("Failed to trigger comment notification:", err);
+      console.error(`Failed to trigger comment notification for user ${recipientId}:`, err);
     }
   }
 

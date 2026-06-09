@@ -376,6 +376,21 @@ Header:
 Authorization: Bearer <accessToken>
 ```
 
+### `POST /media/retroactive-scan`
+Run a retroactive facial recognition matching scan on all archive event photos in S3 against the current user's reference selfie. Automatically creates `MediaTag` associations for any matched faces and returns the count of new matches found.
+
+Header:
+```http
+Authorization: Bearer <accessToken>
+```
+
+Response data:
+```json
+{
+  "count": 5
+}
+```
+
 ### `GET /media/:mediaId/download`
 Retrieve binary buffer of a media item. Dynamically overlays custom-styled text watermark if it's an image.
 

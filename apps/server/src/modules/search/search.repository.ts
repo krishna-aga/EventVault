@@ -30,15 +30,16 @@ export const queryEvents = (filters: {
     ];
   }
 
-  if (filters.tag) {
-    const cleanTag = filters.tag.trim().toLowerCase();
-    where.media = {
-      some: {
-        aiTags: {
-          has: cleanTag,
-        },
-      },
-    };
+  if (filters.tag || filters.uploaderId) {
+    const mediaConditions: any[] = [];
+    if (filters.tag) {
+      const cleanTag = filters.tag.trim().toLowerCase();
+      mediaConditions.push({ aiTags: { has: cleanTag } });
+    }
+    if (filters.uploaderId) {
+      mediaConditions.push({ uploadedById: filters.uploaderId });
+    }
+    where.media = { some: { AND: mediaConditions } };
   }
 
   if (filters.category) {
@@ -57,14 +58,6 @@ export const queryEvents = (filters: {
     if (filters.endDate) {
       where.eventDate.lte = filters.endDate;
     }
-  }
-
-  if (filters.uploaderId) {
-    where.media = {
-      some: {
-        uploadedById: filters.uploaderId,
-      },
-    };
   }
 
   return prisma.event.findMany({

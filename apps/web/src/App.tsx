@@ -180,6 +180,7 @@ function App() {
     endDate: "",
   });
   const [searchResults, setSearchResults] = useState<EventSummary[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const userEvents = currentUser ? events.filter((evt) => evt.createdById === currentUser.id) : [];
 
@@ -441,6 +442,8 @@ function App() {
         );
         setEventMedia(mediaMap);
       }
+      setSelectedFeedEventId(null);
+      setHasSearched(true);
       setView("search");
     } catch (err) {
       triggerToast("Search failed", "warn");
@@ -1535,7 +1538,10 @@ function App() {
             id="nav-feed-btn"
             type="button"
             className={`nav-item ${view === "feed" ? "active" : ""}`}
-            onClick={() => setView("feed")}
+            onClick={() => {
+              setSelectedFeedEventId(null);
+              setView("feed");
+            }}
           >
             <Icon.Home />
             <span>Home Feed</span>
@@ -1546,7 +1552,9 @@ function App() {
             type="button"
             className={`nav-item ${view === "search" ? "active" : ""}`}
             onClick={() => {
+              setSelectedFeedEventId(null);
               setSearchResults([]);
+              setHasSearched(false);
               setView("search");
             }}
           >
@@ -1851,12 +1859,6 @@ function App() {
                 <Icon.Compass />
                 <h4>Searching database...</h4>
               </div>
-            ) : searchResults.length === 0 ? (
-              <div className="empty-placeholder">
-                <Icon.Compass />
-                <h4>No Matching Results</h4>
-                <p>Refine your filters to discover standalone or club events.</p>
-              </div>
             ) : selectedFeedEventId ? (
               <section id="page-event-album" style={{ padding: "20px 0" }}>
                 <header className="page-header" style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "16px" }}>
@@ -1883,6 +1885,73 @@ function App() {
                 </header>
                 {renderEventAlbumFeed(selectedFeedEventId)}
               </section>
+            ) : searchResults.length === 0 ? (
+              !hasSearched ? (
+                <div className="empty-placeholder" style={{
+                  padding: "48px 24px",
+                  borderRadius: "24px",
+                  background: "radial-gradient(circle at top left, rgba(201, 141, 84, 0.08), transparent 70%), rgba(255, 255, 255, 0.01)",
+                  border: "1px solid rgba(255, 255, 255, 0.03)",
+                  boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05), 0 20px 40px rgba(0,0,0,0.3)",
+                  backdropFilter: "blur(20px)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center",
+                  marginTop: "20px",
+                  gap: "16px"
+                }}>
+                  <div style={{
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg, rgba(201, 141, 84, 0.2), rgba(201, 141, 84, 0.05))",
+                    border: "1px solid rgba(201, 141, 84, 0.3)",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "var(--accent-primary)",
+                    boxShadow: "0 8px 16px rgba(201, 141, 84, 0.1)",
+                  }}>
+                    <Icon.Compass />
+                  </div>
+                  <h4 style={{ fontSize: "1.5rem", fontWeight: "700", background: "linear-gradient(135deg, #fff, #a3a3a3)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", margin: 0 }}>Discover Events & Photos</h4>
+                  <p style={{ maxWidth: "420px", color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.6", margin: 0 }}>
+                    Enter search keywords or select event filters above to explore all galleries, media files, and albums across the network.
+                  </p>
+                </div>
+              ) : (
+                <div className="empty-placeholder" style={{
+                  padding: "48px 24px",
+                  borderRadius: "24px",
+                  background: "rgba(255, 255, 255, 0.01)",
+                  border: "1px solid rgba(255, 255, 255, 0.03)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center",
+                  marginTop: "20px",
+                  gap: "16px"
+                }}>
+                  <div style={{
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "50%",
+                    background: "rgba(255, 255, 255, 0.02)",
+                    border: "1px solid rgba(255, 255, 255, 0.05)",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "var(--text-muted)"
+                  }}>
+                    <Icon.Compass />
+                  </div>
+                  <h4 style={{ fontSize: "1.5rem", fontWeight: "700", color: "var(--text-primary)", margin: 0 }}>No Matching Results</h4>
+                  <p style={{ maxWidth: "420px", color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.6", margin: 0 }}>
+                    We couldn't find any events matching your criteria. Try adjusting your keywords, dates, or tag filters.
+                  </p>
+                </div>
+              )
             ) : (
               <div>
                 <h4 style={{ margin: "20px 0 14px", fontSize: "1.1rem" }}>Matching Event Albums ({searchResults.length})</h4>

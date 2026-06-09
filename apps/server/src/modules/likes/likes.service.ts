@@ -17,15 +17,27 @@ export const toggleLike = async (mediaId: string, user: UserSummary) => {
   } else {
     const like = await createLike(user.id, mediaId);
     
-    // Trigger notification if uploader is not the liker
+    // Notify uploader and tagged users (excluding the liker)
+    const recipients = new Set<string>();
     if (mediaItem.uploadedById !== user.id) {
+      recipients.add(mediaItem.uploadedById);
+    }
+    if (mediaItem.tags) {
+      for (const tag of mediaItem.tags) {
+        if (tag.userId !== user.id) {
+          recipients.add(tag.userId);
+        }
+      }
+    }
+
+    for (const recipientId of recipients) {
       try {
-        await createNotification(
-          mediaItem.uploadedById,
-          `${user.name} liked your uploaded media item.`
-        );
+        const message = recipientId === mediaItem.uploadedById
+          ? `${user.name} liked your uploaded media item.`
+          : `${user.name} liked a photo you are tagged in.`;
+        await createNotification(recipientId, message);
       } catch (err) {
-        console.error("Failed to trigger like notification:", err);
+        console.error(`Failed to trigger like notification for user ${recipientId}:`, err);
       }
     }
     
