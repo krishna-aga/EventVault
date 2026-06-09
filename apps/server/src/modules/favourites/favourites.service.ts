@@ -31,7 +31,7 @@ export const toggleFavourite = async (mediaId: string, user: UserSummary) => {
 export const listUserFavourites = async (user: UserSummary) => {
   const favourites = await getFavouritesByUserId(user.id);
   return Promise.all(
-    favourites.map(async (fav) => {
+    favourites.map(async (fav: any) => {
       if (fav.media) {
         return {
           ...fav,
