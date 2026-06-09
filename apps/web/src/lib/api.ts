@@ -327,4 +327,13 @@ export const api = {
       },
       accessToken,
     ),
+
+  retroactiveScan: (accessToken: string) =>
+    request<{ count: number }>(
+      "/media/retroactive-scan",
+      {
+        method: "POST",
+      },
+      accessToken,
+    ),
 };

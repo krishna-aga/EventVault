@@ -212,6 +212,7 @@ function App() {
   const [taggedMedia, setTaggedMedia] = useState<MediaSummary[]>([]);
   const [userUploadedMedia, setUserUploadedMedia] = useState<MediaSummary[]>([]);
   const [selectedViewMedia, setSelectedViewMedia] = useState<MediaSummary | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
 
   // Toast Notifier
   const [toast, setToast] = useState<{ message: string; type: "ok" | "warn" } | null>(null);
@@ -764,11 +765,45 @@ function App() {
       const payload = await api.me(session.accessToken);
       setCurrentUser(payload.user);
       setView("my-photos");
+      
+      // Automatically run a retroactive scan for instant matching
+      setIsScanning(true);
+      try {
+        const scanRes = await api.retroactiveScan(session.accessToken);
+        if (scanRes.count > 0) {
+          triggerToast(`Scan complete! Found and tagged ${scanRes.count} matching photos in the archive.`, "ok");
+        } else {
+          triggerToast("Scan complete! No matching photos found in the archive yet.", "ok");
+        }
+      } catch (scanErr) {
+        console.error("Auto retroactive scan failed:", scanErr);
+      } finally {
+        setIsScanning(false);
+      }
+
       await loadTaggedMedia();
     } catch (err: any) {
       triggerToast(err.message || "Failed to upload selfie", "warn");
     } finally {
       setWorking(false);
+    }
+  };
+
+  const handleRetroactiveScan = async () => {
+    if (!session) return;
+    setIsScanning(true);
+    try {
+      const scanRes = await api.retroactiveScan(session.accessToken);
+      if (scanRes.count > 0) {
+        triggerToast(`Scan complete! Found and tagged ${scanRes.count} matching photos in the archive.`, "ok");
+      } else {
+        triggerToast("Scan complete! No matching photos found in the archive yet.", "ok");
+      }
+      await loadTaggedMedia();
+    } catch (err: any) {
+      triggerToast(err.message || "Failed to scan archive", "warn");
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -1497,6 +1532,7 @@ function App() {
 
         <nav className="nav-links">
           <button
+            id="nav-feed-btn"
             type="button"
             className={`nav-item ${view === "feed" ? "active" : ""}`}
             onClick={() => setView("feed")}
@@ -1506,6 +1542,7 @@ function App() {
           </button>
           
           <button
+            id="nav-search-btn"
             type="button"
             className={`nav-item ${view === "search" ? "active" : ""}`}
             onClick={() => {
@@ -1520,6 +1557,7 @@ function App() {
           {currentUser && currentUser.role !== "VIEWER" && (
             <>
               <button
+                id="nav-clubs-btn"
                 type="button"
                 className={`nav-item ${view === "clubs" ? "active" : ""}`}
                 onClick={() => setView("clubs")}
@@ -1529,6 +1567,7 @@ function App() {
               </button>
               
               <button
+                id="nav-upload-btn"
                 type="button"
                 className={`nav-item ${view === "upload" ? "active" : ""}`}
                 onClick={() => setView("upload")}
@@ -1540,6 +1579,7 @@ function App() {
           )}
           
           <button
+            id="nav-notifications-btn"
             type="button"
             className={`nav-item ${view === "notifications" ? "active" : ""}`}
             onClick={() => setView("notifications")}
@@ -1561,6 +1601,7 @@ function App() {
           </button>
 
           <button
+            id="nav-profile-btn"
             type="button"
             className={`nav-item ${view === "profile" ? "active" : ""}`}
             onClick={() => setView("profile")}
@@ -1570,6 +1611,7 @@ function App() {
           </button>
 
           <button
+            id="nav-my-photos-btn"
             type="button"
             className={`nav-item ${view === "my-photos" ? "active" : ""}`}
             onClick={() => setView("my-photos")}
@@ -2691,15 +2733,46 @@ function App() {
                 <p className="profile-email" style={{ marginBottom: "12px" }}>
                   Use the upload badge to update the selfie that photographers match against when they upload event albums.
                 </p>
-                <div className="profile-stats-row">
-                  <div className="profile-stat-item">
-                    <span className="profile-stat-num">{taggedMedia.length}</span>
-                    <span className="profile-stat-label">Matched Photos</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", flexWrap: "wrap", gap: "16px" }}>
+                  <div className="profile-stats-row" style={{ margin: 0 }}>
+                    <div className="profile-stat-item">
+                      <span className="profile-stat-num">{taggedMedia.length}</span>
+                      <span className="profile-stat-label">Matched Photos</span>
+                    </div>
+                    <div className="profile-stat-item">
+                      <span className="profile-stat-num">{currentUser.referenceSelfie ? "Ready" : "Pending"}</span>
+                      <span className="profile-stat-label">Face Profile</span>
+                    </div>
                   </div>
-                  <div className="profile-stat-item">
-                    <span className="profile-stat-num">{currentUser.referenceSelfie ? "Ready" : "Pending"}</span>
-                    <span className="profile-stat-label">Face Profile</span>
-                  </div>
+
+                  {currentUser.referenceSelfie && (
+                    <button
+                      type="button"
+                      className="form-submit-btn"
+                      style={{
+                        margin: 0,
+                        padding: "10px 20px",
+                        fontSize: "0.875rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                      onClick={handleRetroactiveScan}
+                      disabled={isScanning}
+                    >
+                      {isScanning ? (
+                        <>
+                          <span className="spinner-small" />
+                          <span>Scanning Archive...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ display: "inline-flex", width: "16px", height: "16px" }}><Icon.Compass /></span>
+                          <span>Scan Archive for Matches</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </article>

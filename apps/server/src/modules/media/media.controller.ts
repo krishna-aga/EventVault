@@ -9,6 +9,7 @@ import {
   getUserUploadedMedia,
   analyzeUploadedFile,
   downloadMediaFile,
+  runRetroactiveScan,
 } from "./media.service.js";
 import { parseMediaUploadBody } from "./media.schema.js";
 
@@ -138,6 +139,19 @@ export const downloadMedia: RequestHandler = async (req, res, next) => {
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Type", mimeType);
     res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const retroactiveScan: RequestHandler = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    const count = await runRetroactiveScan(req.user.id);
+    sendSuccess(res, "Retroactive scanning complete", { count });
   } catch (error) {
     next(error);
   }

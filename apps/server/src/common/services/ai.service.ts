@@ -114,11 +114,12 @@ export const searchFaces = async (s3Key: string): Promise<string[]> => {
           Name: s3Key,
         },
       },
-      FaceMatchThreshold: 85,
+      FaceMatchThreshold: 95,
       MaxFaces: 10,
     });
     const response = await client.send(command);
     const userIds = (response.FaceMatches || [])
+      .filter((match) => match.Similarity !== undefined && match.Similarity >= 95)
       .map((match) => match.Face?.ExternalImageId || "")
       .filter((id) => id.length > 0);
 

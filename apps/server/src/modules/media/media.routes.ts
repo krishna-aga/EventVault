@@ -9,6 +9,7 @@ import {
   listUserMedia,
   analyzeMedia,
   downloadMedia,
+  retroactiveScan,
 } from "./media.controller.js";
 
 const router = Router();
@@ -35,6 +36,8 @@ router.post(
   upload.single("file"),
   analyzeMedia,
 );
+
+router.post("/retroactive-scan", authMiddleware, retroactiveScan);
 
 router.get("/events/:eventId/media", authMiddleware, listMedia);
 router.get("/tagged", authMiddleware, listTaggedMedia);

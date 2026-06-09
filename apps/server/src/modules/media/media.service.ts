@@ -339,3 +339,50 @@ export const downloadMediaFile = async (mediaId: string, user: UserSummary) => {
     mimeType,
   };
 };
+
+export const runRetroactiveScan = async (userId: string): Promise<number> => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { referenceSelfie: true },
+  });
+
+  if (!user || !user.referenceSelfie) {
+    throw new ApiError(400, "Please upload a reference selfie first before running a retroactive scan");
+  }
+
+  const existingMedia = await prisma.media.findMany({
+    where: {
+      fileUrl: { contains: ".amazonaws.com/" },
+      tags: {
+        none: {
+          userId: userId,
+        },
+      },
+    },
+    include: {
+      event: true,
+    },
+  });
+
+  let matchCount = 0;
+
+  for (const media of existingMedia) {
+    try {
+      const s3Key = path.basename(media.fileUrl);
+      const matchedUserIds = await searchFaces(s3Key);
+
+      if (matchedUserIds.includes(userId)) {
+        await createMediaTag(media.id, userId);
+        await createNotification(
+          userId,
+          `We found a matching photo of you in the event "${media.event.title}"!`
+        );
+        matchCount++;
+      }
+    } catch (err) {
+      console.error(`Retroactive scan failed for media ${media.id}:`, err);
+    }
+  }
+
+  return matchCount;
+};
