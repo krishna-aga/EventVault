@@ -8,6 +8,7 @@ import {
   logoutSession,
   refreshSession,
   registerUser,
+  saveUserSelfie,
 } from "./auth.service.js";
 
 export const register: RequestHandler = async (req, res, next) => {
@@ -59,6 +60,23 @@ export const me: RequestHandler = async (req, res, next) => {
     const user = await getCurrentUser(req.user.id);
 
     sendSuccess(res, AUTH_MESSAGES.PROFILE_FETCHED, { user });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const uploadSelfie: RequestHandler = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, COMMON_MESSAGES.UNAUTHORIZED);
+    }
+
+    if (!req.file) {
+      throw new ApiError(400, "Reference selfie file is required");
+    }
+
+    const fileUrl = await saveUserSelfie(req.user.id, req.file);
+    sendSuccess(res, "Reference selfie uploaded and processed successfully", { fileUrl });
   } catch (error) {
     next(error);
   }

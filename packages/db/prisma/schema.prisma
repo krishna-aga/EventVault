@@ -42,6 +42,7 @@ model User {
   role            Role @default(VIEWER)
 
   profileImage    String?
+  referenceSelfie String?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -230,6 +231,10 @@ model Media {
   favourites      Favourite[]
 
   tags            MediaTag[]
+
+  aiTags          String[] @default([])
+  aiCaption       String?
+  pHash           String?
 }
 
 model Comment {

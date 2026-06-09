@@ -16,8 +16,12 @@ import {
   findUserByEmail,
   findUserById,
   revokeRefreshToken,
+  updateUserSelfie,
 } from "./auth.repository.js";
 import type { RoleName } from "../../common/constants/roles.js";
+import { uploadFile } from "../../common/services/storage.service.js";
+import { indexReferenceSelfie } from "../../common/services/ai.service.js";
+import path from "node:path";
 
 const sanitizeUser = (user: {
   id: string;
@@ -181,4 +185,23 @@ export const getCurrentUser = async (userId: string): Promise<AuthUser> => {
   }
 
   return sanitizeUser(user);
+};
+
+export const saveUserSelfie = async (
+  userId: string,
+  file: Express.Multer.File,
+): Promise<string> => {
+  const uploadResult = await uploadFile(file);
+  await updateUserSelfie(userId, uploadResult.fileUrl);
+
+  if (uploadResult.fileUrl.includes(".amazonaws.com/")) {
+    try {
+      const s3Key = path.basename(uploadResult.fileUrl);
+      await indexReferenceSelfie(userId, s3Key);
+    } catch (err) {
+      console.error("Failed to index face during selfie save:", err);
+    }
+  }
+
+  return uploadResult.fileUrl;
 };

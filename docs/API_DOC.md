@@ -90,10 +90,22 @@ Request body:
 ### `GET /auth/me`
 Return the current authenticated user.
 
-Header:
+### `POST /auth/selfie`
+Upload and index a calibration selfie to set up facial recognition for auto-tagging.
 
+Multipart/form-data field:
+* `file` (single image file)
+
+Header:
 ```http
 Authorization: Bearer <accessToken>
+```
+
+Response data:
+```json
+{
+  "fileUrl": "https://eventvault-s3-bucket.s3.amazonaws.com/selfies/user-123.jpg"
+}
 ```
 
 ---
@@ -311,9 +323,28 @@ Authorization: Bearer <accessToken>
 ### `DELETE /media/:mediaId`
 Delete a specific media item.
 
+### `GET /media/tagged`
+Retrieve all media items where the logged-in user has been tagged via facial recognition matching.
+
 Header:
 ```http
 Authorization: Bearer <accessToken>
+```
+
+Response data:
+```json
+{
+  "media": [
+    {
+      "id": "media-123",
+      "title": "Opening Stage",
+      "fileUrl": "/uploads/media-123.jpg",
+      "aiTags": ["stage", "concert", "singer"],
+      "aiCaption": "A fantastic opening stage featuring live singing.",
+      "eventId": "event-123"
+    }
+  ]
+}
 ```
 
 ---

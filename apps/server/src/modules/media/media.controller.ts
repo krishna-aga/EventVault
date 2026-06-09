@@ -1,7 +1,7 @@
 import type { RequestHandler } from "express";
 import { ApiError } from "../../common/errors/ApiError.js";
 import { sendSuccess } from "../../common/utils/response.js";
-import { uploadEventMedia, getEventMedia, deleteMedia } from "./media.service.js";
+import { uploadEventMedia, getEventMedia, deleteMedia, getTaggedMedia } from "./media.service.js";
 import { parseMediaUploadBody } from "./media.schema.js";
 
 export const uploadMedia: RequestHandler = async (req, res, next) => {
@@ -67,6 +67,19 @@ export const removeMedia: RequestHandler = async (req, res, next) => {
 
     await deleteMedia(mediaId, req.user as any);
     sendSuccess(res, "Media file removed successfully", null);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const listTaggedMedia: RequestHandler = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    const result = await getTaggedMedia(req.user as any);
+    sendSuccess(res, "Tagged media files loaded successfully", { media: result });
   } catch (error) {
     next(error);
   }

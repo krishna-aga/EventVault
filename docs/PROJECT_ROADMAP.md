@@ -171,18 +171,18 @@ Status: Completed
 
 ## Phase 10 - AI Features
 
-Status: Future
+Status: Completed
 
 ### Smart Image Tagging
 
-* [ ] Auto-generate tags
-* [ ] Categorize images
+* [x] Auto-generate tags (AWS Rekognition label detection)
+* [x] Categorize images (automatic lowercase database tags)
 
 ### Facial Recognition
 
-* [ ] Upload reference selfie
-* [ ] Face matching
-* [ ] Personal gallery
+* [x] Upload reference selfie (facial print indexed in Rekognition collection)
+* [x] Face matching (photographer upload comparisons)
+* [x] Personal gallery (Tagged Photos tab in user Profile view)
 
 ---
 
@@ -215,23 +215,23 @@ Status: Future
 
 ## Phase 13 - Bonus Features
 
-Status: Future
+Status: Future / Partial
 
 * [ ] Infinite scrolling
 * [ ] QR album sharing
 * [ ] Collaborative albums
-* [ ] AI captions
+* [x] AI captions (Google Gemini dynamic descriptions)
 * [ ] Analytics dashboard
 * [ ] PWA support
 * [ ] Offline support
-* [ ] Duplicate image detection
+* [x] Duplicate image detection (SHA-256 buffer hash exact duplicate blocking)
 
 ---
 
 ## Current Focus
 
-1. Phase 10 - AI Features (Auto-generate tags, Facial Recognition)
-2. Phase 12 - Watermarking
+1. Phase 12 - Watermarking
+2. Media delivery CDN support
 
 ---
 

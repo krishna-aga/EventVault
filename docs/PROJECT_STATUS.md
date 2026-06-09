@@ -10,7 +10,7 @@ The platform enables clubs, photographers, organizers, and members to upload, or
 
 ## Current Development Stage
 
-Phase 9 - Search & Discovery
+Phase 10 - AI/ML Integration
 
 Status: Completed
 
@@ -164,6 +164,15 @@ packages/
 * [x] Full-text database wildcard search on events
 * [x] Filters by category, club, uploader, date range, tags
 
+### AI/ML Integration (Phase 10)
+
+* [x] Smart image tagging (AWS Rekognition labels converted to tags)
+* [x] AI search by tags (matching auto-generated tags array)
+* [x] Face prints calibration selfie widget (POST /auth/selfie)
+* [x] Auto facial recognition and photographer auto-tagging
+* [x] AI caption generation using Google Gemini (with AWS Rekognition fallback)
+* [x] SHA-256 buffer hash exact duplicate blocking
+
 ### Cloud Features (Phase 11)
 
 * [x] AWS S3 file upload integration with automatic static local folder fallback
@@ -192,16 +201,15 @@ packages/
 
 ### Immediate Next Steps
 
-1. Implement smart image tagging using auto-generated tags (AI).
-2. Implement facial recognition and reference selfies (AI).
-3. Implement dynamic and event-based watermarking.
+1. Implement dynamic and event-based watermarking.
+2. Optimize media delivery via cloud CDN distributions.
 
 ### AI Features
 
-* Smart image tagging
-* Facial recognition
-* Personalized gallery
-* Advanced search improvements
+* Smart image tagging (Completed)
+* Facial recognition (Completed)
+* Personalized gallery (Completed)
+* Advanced search improvements (Completed)
 
 ### Cloud Features
 
@@ -226,6 +234,6 @@ packages/
 
 ## Last Updated
 
-Phase 9 completed.
+Phase 10 - AI/ML Integration completed.
 
-Current task: Future Phase 10 - AI Features.
+Current task: Documentation update and future features planning.

@@ -68,3 +68,10 @@ export const revokeRefreshTokensForUser = (userId: string) => {
     },
   });
 };
+
+export const updateUserSelfie = (id: string, referenceSelfie: string) => {
+  return prisma.user.update({
+    where: { id },
+    data: { referenceSelfie },
+  });
+};

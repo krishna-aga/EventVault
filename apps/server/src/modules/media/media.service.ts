@@ -8,8 +8,15 @@ import {
   findMediaById,
   deleteMediaById,
   findMediaByEventId,
+  findMediaByHash,
+  createMediaTag,
+  findMediaByTagUserId,
 } from "./media.repository.js";
 import type { UserSummary } from "@repo/contracts";
+import crypto from "node:crypto";
+import path from "node:path";
+import { detectLabels, generateCaption, searchFaces } from "../../common/services/ai.service.js";
+import { createNotification } from "../notifications/notifications.service.js";
 
 export const uploadEventMedia = async (
   eventId: string,
@@ -52,6 +59,15 @@ export const uploadEventMedia = async (
     throw new ApiError(400, "No files provided for upload");
   }
 
+  // Phase 10: Duplicate Image Detection (SHA-256 hash check)
+  for (const file of files) {
+    const hash = crypto.createHash("sha256").update(file.buffer).digest("hex");
+    const existingMedia = await findMediaByHash(hash);
+    if (existingMedia) {
+      throw new ApiError(409, `Duplicate file detected: "${file.originalname}" has already been uploaded.`);
+    }
+  }
+
   // Create upload session batch
   const batch = await createUploadBatch({
     uploadedById: user.id,
@@ -59,8 +75,32 @@ export const uploadEventMedia = async (
   });
 
   const uploadPromises = files.map(async (file) => {
+    const hash = crypto.createHash("sha256").update(file.buffer).digest("hex");
     const result = await uploadFile(file);
-    return createMedia({
+
+    let labels: string[] = [];
+    let caption: string | null = null;
+    let matchedUserIds: string[] = [];
+
+    // Execute AI pipeline if uploaded to S3
+    if (result.fileUrl.includes(".amazonaws.com/")) {
+      try {
+        const s3Key = path.basename(result.fileUrl);
+
+        // 1. Smart Image Tagging
+        labels = await detectLabels(s3Key);
+
+        // 2. AI Captioning
+        caption = await generateCaption(labels);
+
+        // 3. Facial Recognition / Face Search
+        matchedUserIds = await searchFaces(s3Key);
+      } catch (err) {
+        console.error("AI Operations failed for uploaded file:", file.originalname, err);
+      }
+    }
+
+    const media = await createMedia({
       title: title || file.originalname,
       fileUrl: result.fileUrl,
       thumbnailUrl: result.thumbnailUrl,
@@ -69,7 +109,29 @@ export const uploadEventMedia = async (
       uploadedById: user.id,
       eventId: event.id,
       batchId: batch.id,
+      pHash: hash,
+      aiTags: labels,
+      aiCaption: caption,
     });
+
+    // Create database tags and trigger notifications for matched users
+    if (matchedUserIds.length > 0) {
+      for (const matchedUserId of matchedUserIds) {
+        try {
+          await createMediaTag(media.id, matchedUserId);
+
+          // Trigger a notification
+          await createNotification(
+            matchedUserId,
+            `You have been tagged in a new photo uploaded under the event "${event.title}"!`
+          );
+        } catch (err) {
+          console.error(`Failed to automatically tag user ${matchedUserId} in media ${media.id}:`, err);
+        }
+      }
+    }
+
+    return media;
   });
 
   const mediaItems = await Promise.all(uploadPromises);
@@ -137,4 +199,14 @@ export const deleteMedia = async (mediaId: string, user: UserSummary) => {
 
   // Delete from database
   return deleteMediaById(mediaId);
+};
+
+export const getTaggedMedia = async (user: UserSummary) => {
+  const mediaItems = await findMediaByTagUserId(user.id);
+  return Promise.all(
+    mediaItems.map(async (item) => ({
+      ...item,
+      fileUrl: await signFileUrl(item.fileUrl),
+    }))
+  );
 };

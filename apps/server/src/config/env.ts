@@ -25,4 +25,5 @@ export const env = {
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
   awsRegion: process.env.AWS_REGION ?? "us-east-1",
   awsS3BucketName: process.env.AWS_S3_BUCKET_NAME ?? "",
+  geminiApiKey: process.env.GEMINI_API_KEY ?? "",
 } as const;

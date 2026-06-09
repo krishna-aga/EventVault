@@ -21,6 +21,7 @@ export interface UserSummary {
   email: string;
   role: string;
   profileImage: string | null;
+  referenceSelfie?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -81,6 +82,9 @@ export interface MediaSummary {
   eventId: string;
   batchId: string | null;
   uploader?: UserSummary;
+  aiTags?: string[];
+  aiCaption?: string | null;
+  pHash?: string | null;
 }
 
 export interface CommentSummary {

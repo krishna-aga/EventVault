@@ -13,11 +13,32 @@ export const queryEvents = (filters: {
   const where: any = {};
 
   if (filters.q) {
+    const cleanQ = filters.q.trim().toLowerCase();
     where.OR = [
       { title: { contains: filters.q, mode: "insensitive" } },
       { description: { contains: filters.q, mode: "insensitive" } },
       { location: { contains: filters.q, mode: "insensitive" } },
+      {
+        media: {
+          some: {
+            aiTags: {
+              has: cleanQ,
+            },
+          },
+        },
+      },
     ];
+  }
+
+  if (filters.tag) {
+    const cleanTag = filters.tag.trim().toLowerCase();
+    where.media = {
+      some: {
+        aiTags: {
+          has: cleanTag,
+        },
+      },
+    };
   }
 
   if (filters.category) {

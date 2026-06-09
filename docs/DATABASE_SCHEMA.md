@@ -105,6 +105,7 @@ Represents a platform user.
 | passwordHash | String |
 | role | Role |
 | profileImage | String? |
+| referenceSelfie | String? |
 | createdAt | DateTime |
 | updatedAt | DateTime |
 
@@ -248,6 +249,9 @@ Represents uploaded photos or videos.
 | uploadedById | String |
 | eventId | String |
 | batchId | String? |
+| aiTags | String[] |
+| aiCaption | String? |
+| pHash | String? |
 
 ### Comment
 
@@ -375,4 +379,4 @@ These will be added in later roadmap phases as required.
 
 ## Last Updated
 
-Phase 9 - Search & Discovery (Phases 5-9 implemented)
+Phase 10 - AI/ML Integration (Phases 5-10 implemented)

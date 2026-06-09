@@ -186,6 +186,9 @@ export const api = {
   listMedia: (eventId: string, accessToken: string) =>
     request<{ media: MediaSummary[] }>(`/media/events/${eventId}/media`, {}, accessToken),
 
+  listTaggedMedia: (accessToken: string) =>
+    request<{ media: MediaSummary[] }>("/media/tagged", {}, accessToken),
+
   deleteMedia: (mediaId: string, accessToken: string) =>
     request<null>(`/media/${mediaId}`, { method: "DELETE" }, accessToken),
 
@@ -253,5 +256,26 @@ export const api = {
     if (filters.tag) params.set("tag", filters.tag);
 
     return request<{ events: EventSummary[] }>(`/search?${params.toString()}`);
+  },
+
+  uploadSelfie: async (file: File, accessToken: string): Promise<{ fileUrl: string }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API_BASE_URL}/auth/selfie`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: formData,
+    });
+
+    const payload = (await response.json()) as ApiResponse<{ fileUrl: string }> | { success: false; message: string };
+
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.message);
+    }
+
+    return payload.data;
   },
 };

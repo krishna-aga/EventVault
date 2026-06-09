@@ -196,6 +196,11 @@ function App() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Phase 10 AI Features States
+  const [profileActiveTab, setProfileActiveTab] = useState<"events" | "tagged">("events");
+  const [taggedMedia, setTaggedMedia] = useState<MediaSummary[]>([]);
+  const [selectedViewMedia, setSelectedViewMedia] = useState<MediaSummary | null>(null);
+
   // Toast Notifier
   const [toast, setToast] = useState<{ message: string; type: "ok" | "warn" } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -352,12 +357,18 @@ function App() {
     }
   }, [expandedClubId]);
 
+  useEffect(() => {
+    if (view === "profile" && session) {
+      void loadTaggedMedia();
+    }
+  }, [view, session]);
+
   // Trigger search query
-  const triggerSearch = async (e?: FormEvent) => {
+  const triggerSearch = async (e?: FormEvent, filterOverrides?: SearchFilters) => {
     if (e) e.preventDefault();
     setLoading(true);
     try {
-      const payload = await api.search(searchFilters);
+      const payload = await api.search(filterOverrides || searchFilters);
       setSearchResults(payload.events);
       if (session) {
         const mediaMap = { ...eventMedia };
@@ -572,6 +583,33 @@ function App() {
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
+    }
+  };
+
+  const loadTaggedMedia = async () => {
+    if (!session) return;
+    try {
+      const res = await api.listTaggedMedia(session.accessToken);
+      setTaggedMedia(res.media);
+    } catch (err) {
+      console.error("Failed to load tagged media:", err);
+    }
+  };
+
+  const handleSelfieUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    if (!session) return;
+    setWorking(true);
+    try {
+      await api.uploadSelfie(files[0], session.accessToken);
+      triggerToast("Reference selfie uploaded and face print indexed!");
+      const payload = await api.me(session.accessToken);
+      setCurrentUser(payload.user);
+    } catch (err: any) {
+      triggerToast(err.message || "Failed to upload selfie", "warn");
+    } finally {
+      setWorking(false);
     }
   };
 
@@ -1036,6 +1074,40 @@ function App() {
                 <h3 className="post-title">{evt.title}</h3>
                 {evt.description && <p className="post-description">{evt.description}</p>}
 
+                {activeMedia && activeMedia.aiCaption && (
+                  <p className="post-ai-caption" style={{ fontStyle: "italic", color: "rgba(167, 139, 250, 1)", marginBottom: "12px", fontSize: "0.9rem" }}>
+                    ✨ {activeMedia.aiCaption}
+                  </p>
+                )}
+
+                {activeMedia && activeMedia.aiTags && activeMedia.aiTags.length > 0 && (
+                  <div className="post-ai-tags" style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "12px" }}>
+                    {activeMedia.aiTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="ai-tag-chip"
+                        style={{
+                          fontSize: "0.75rem",
+                          padding: "2px 8px",
+                          background: "rgba(139, 92, 246, 0.15)",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          color: "rgba(167, 139, 250, 1)",
+                          borderRadius: "12px",
+                          cursor: "pointer"
+                        }}
+                        onClick={() => {
+                          const newFilters = { ...searchFilters, tag: tag, q: "" };
+                          setSearchFilters(newFilters);
+                          setView("search");
+                          void triggerSearch(undefined, newFilters);
+                        }}
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 <div className="post-info-row">
                   {evt.location && (
                     <div className="post-info-item">
@@ -1358,6 +1430,16 @@ function App() {
                     placeholder="e.g. Workshop"
                     value={searchFilters.category || ""}
                     onChange={(e) => setSearchFilters(prev => ({ ...prev, category: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: "0.75rem", fontWeight: "600", color: "var(--text-secondary)" }}>AI Tag</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. stage, group"
+                    value={searchFilters.tag || ""}
+                    onChange={(e) => setSearchFilters(prev => ({ ...prev, tag: e.target.value }))}
                   />
                 </div>
                 <div className="form-group">
@@ -1831,57 +1913,141 @@ function App() {
                     <span className="profile-stat-label">Clubs Joined</span>
                   </div>
                 </div>
+
+                <div className="profile-selfie-section" style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    {currentUser.referenceSelfie ? (
+                      <div className="selfie-thumbnail" style={{ position: "relative" }}>
+                        <img
+                          src={getMediaSourceUrl(currentUser.referenceSelfie)}
+                          alt="Selfie"
+                          style={{ width: "42px", height: "42px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent-primary)" }}
+                        />
+                        <span style={{ position: "absolute", bottom: -2, right: -2, background: "#10B981", width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #000" }} title="Face print calibrated" />
+                      </div>
+                    ) : (
+                      <div style={{ width: "42px", height: "42px", borderRadius: "50%", background: "rgba(255,255,255,0.05)", display: "grid", placeItems: "center" }}>
+                        <Icon.Profile />
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <h4 style={{ margin: 0, fontSize: "0.85rem", fontWeight: "600", color: "var(--text-primary)" }}>Calibration Face ID</h4>
+                      <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                        {currentUser.referenceSelfie ? "Face calibrated for auto-tagging" : "Set up facial recognition"}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="sec-btn" style={{ margin: 0, padding: "6px 12px", cursor: "pointer", display: "inline-block", fontSize: "0.8rem" }}>
+                        {currentUser.referenceSelfie ? "Re-calibrate" : "Upload Selfie"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: "none" }}
+                          onChange={handleSelfieUpload}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
               </div>
             </article>
 
             <div className="profile-tabs">
-              <button type="button" className="profile-tab-btn active">
+              <button
+                type="button"
+                className={`profile-tab-btn ${profileActiveTab === "events" ? "active" : ""}`}
+                onClick={() => setProfileActiveTab("events")}
+              >
                 My Events ({userEvents.length})
+              </button>
+              <button
+                type="button"
+                className={`profile-tab-btn ${profileActiveTab === "tagged" ? "active" : ""}`}
+                onClick={() => setProfileActiveTab("tagged")}
+              >
+                Tagged Photos ({taggedMedia.length})
               </button>
             </div>
 
-            {userEvents.length === 0 ? (
-              <div className="empty-placeholder">
-                <Icon.Calendar />
-                <h4>No Events Scheduled</h4>
-                <p>Tap "New Event" in the Feed to schedule an event album.</p>
-              </div>
-            ) : (
-              <div className="profile-grid">
-                {userEvents.map((evt) => (
-                  <article
-                    key={evt.id}
-                    className="profile-grid-item"
-                    onClick={() => {
-                      setEventDraft(toDraft(evt));
-                      setSelectedEventId(evt.id);
-                      setIsEventModalOpen(true);
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
+            {profileActiveTab === "events" ? (
+              userEvents.length === 0 ? (
+                <div className="empty-placeholder">
+                  <Icon.Calendar />
+                  <h4>No Events Scheduled</h4>
+                  <p>Tap "New Event" in the Feed to schedule an event album.</p>
+                </div>
+              ) : (
+                <div className="profile-grid">
+                  {userEvents.map((evt) => (
+                    <article
+                      key={evt.id}
+                      className="profile-grid-item"
+                      onClick={() => {
                         setEventDraft(toDraft(evt));
                         setSelectedEventId(evt.id);
                         setIsEventModalOpen(true);
-                      }
-                    }}
-                  >
-                    {evt.coverImage ? (
-                      <img src={getMediaSourceUrl(evt.coverImage)} alt={evt.title} />
-                    ) : (
-                      <div style={{ width: "100%", height: "100%", background: "#1f2937", display: "grid", placeItems: "center" }}>
-                        <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>No cover image</span>
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          setEventDraft(toDraft(evt));
+                          setSelectedEventId(evt.id);
+                          setIsEventModalOpen(true);
+                        }
+                      }}
+                    >
+                      {evt.coverImage ? (
+                        <img src={getMediaSourceUrl(evt.coverImage)} alt={evt.title} />
+                      ) : (
+                        <div style={{ width: "100%", height: "100%", background: "#1f2937", display: "grid", placeItems: "center" }}>
+                          <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>No cover image</span>
+                        </div>
+                      )}
+                      <div className="profile-grid-overlay">
+                        <h4>{evt.title}</h4>
+                        <span>{evt.category}</span>
+                        <p>{formatDate(evt.eventDate)}</p>
                       </div>
-                    )}
-                    <div className="profile-grid-overlay">
-                      <h4>{evt.title}</h4>
-                      <span>{evt.category}</span>
-                      <p>{formatDate(evt.eventDate)}</p>
-                    </div>
-                  </article>
-                ))}
-              </div>
+                    </article>
+                  ))}
+                </div>
+              )
+            ) : (
+              taggedMedia.length === 0 ? (
+                <div className="empty-placeholder">
+                  <Icon.Compass />
+                  <h4>No Tagged Photos</h4>
+                  <p>Upload a selfie so photographers can auto-tag you in event photos.</p>
+                </div>
+              ) : (
+                <div className="profile-grid">
+                  {taggedMedia.map((m) => {
+                    const matchedEvent = events.find((e) => e.id === m.eventId);
+                    return (
+                      <article
+                        key={m.id}
+                        className="profile-grid-item"
+                        onClick={() => setSelectedViewMedia(m)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            setSelectedViewMedia(m);
+                          }
+                        }}
+                      >
+                        <img src={getMediaSourceUrl(m.fileUrl)} alt={m.title || "Tagged photo"} />
+                        <div className="profile-grid-overlay">
+                          <h4>{m.title || "Untitled Capture"}</h4>
+                          <span>{matchedEvent?.title || "Event Gallery"}</span>
+                          {m.aiCaption && <p style={{ fontSize: "0.75rem", fontStyle: "italic", marginTop: "4px" }}>✨ {m.aiCaption}</p>}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )
             )}
           </section>
         )}
@@ -2117,6 +2283,72 @@ function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* VIEW MEDIA MODAL */}
+      {selectedViewMedia && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-content" style={{ maxWidth: "600px" }}>
+            <header className="modal-header">
+              <h3>{selectedViewMedia.title || "Tagged Media Details"}</h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setSelectedViewMedia(null)}
+              >
+                <Icon.Close />
+              </button>
+            </header>
+
+            <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div className="post-media-container" style={{ position: "relative", borderRadius: "12px", overflow: "hidden" }}>
+                <img
+                  src={getMediaSourceUrl(selectedViewMedia.fileUrl)}
+                  alt={selectedViewMedia.title || "Tagged media"}
+                  style={{ width: "100%", maxHeight: "400px", objectFit: "contain", background: "#000" }}
+                />
+              </div>
+
+              {selectedViewMedia.aiCaption && (
+                <div style={{ background: "rgba(139, 92, 246, 0.05)", borderLeft: "4px solid var(--accent-primary)", padding: "12px 16px", borderRadius: "8px" }}>
+                  <span style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "var(--accent-primary)", fontWeight: "700" }}>AI Description</span>
+                  <p style={{ margin: "4px 0 0 0", fontStyle: "italic", fontSize: "0.95rem", color: "var(--text-primary)" }}>
+                    ✨ {selectedViewMedia.aiCaption}
+                  </p>
+                </div>
+              )}
+
+              {selectedViewMedia.aiTags && selectedViewMedia.aiTags.length > 0 && (
+                <div>
+                  <span style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "var(--text-secondary)", fontWeight: "700", display: "block", marginBottom: "6px" }}>Auto-Generated Tags</span>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {selectedViewMedia.aiTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="ai-tag-chip"
+                        style={{
+                          fontSize: "0.75rem",
+                          padding: "4px 10px",
+                          background: "rgba(139, 92, 246, 0.15)",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          color: "rgba(167, 139, 250, 1)",
+                          borderRadius: "12px"
+                        }}
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "12px" }}>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                  Uploaded on {formatDate(selectedViewMedia.uploadedAt)}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}

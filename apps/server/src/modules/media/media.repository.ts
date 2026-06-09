@@ -33,6 +33,9 @@ export const createMedia = (data: {
   uploadedById: string;
   eventId: string;
   batchId?: string | null;
+  pHash?: string | null;
+  aiTags?: string[];
+  aiCaption?: string | null;
 }) => {
   return prisma.media.create({
     data,
@@ -64,6 +67,44 @@ export const deleteMediaById = (id: string) => {
 export const findMediaByEventId = (eventId: string) => {
   return prisma.media.findMany({
     where: { eventId },
+    include: {
+      uploader: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          profileImage: true,
+        },
+      },
+    },
+    orderBy: {
+      uploadedAt: "desc",
+    },
+  });
+};
+
+export const findMediaByHash = (pHash: string) => {
+  return prisma.media.findFirst({
+    where: { pHash },
+  });
+};
+
+export const createMediaTag = (mediaId: string, userId: string) => {
+  return prisma.mediaTag.create({
+    data: { mediaId, userId },
+  });
+};
+
+export const findMediaByTagUserId = (userId: string) => {
+  return prisma.media.findMany({
+    where: {
+      tags: {
+        some: {
+          userId,
+        },
+      },
+    },
     include: {
       uploader: {
         select: {

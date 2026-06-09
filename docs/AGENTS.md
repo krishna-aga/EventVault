@@ -36,21 +36,17 @@ Completed phases:
 * Phase 7 - Social Features
 * Phase 8 - Notifications
 * Phase 9 - Search & Discovery
+* Phase 10 - AI/ML Features
 * Phase 11 - Cloud Storage (AWS S3)
 
 Current focus:
 
-* Phase 10 - AI Features
+* Phase 12 - Watermarking
 
 Upcoming areas:
 
-* Access control
-* Social features
-* Notifications
-* Search and discovery
-* AI features
-* Cloud storage
 * Watermarking
+* Media delivery CDN support
 
 ## 4. Architecture
 
@@ -170,8 +166,8 @@ The best agent behavior for this repo is:
 You can treat this repo as:
 
 * a monorepo with a React frontend, Express backend, Prisma database layer, and shared contracts package
-* a project currently past auth, clubs, events, media, access control, social, notifications, search, and S3 integration
-* a codebase where the next major area is AI Features (Phase 10) or Watermarking (Phase 12)
+* a project currently past auth, clubs, events, media, access control, social, notifications, search, S3 integration, and AI/ML features
+* a codebase where the next major area is Watermarking (Phase 12)
 
 When starting a new task, first identify the exact files needed, then make the smallest safe change.
 

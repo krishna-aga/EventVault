@@ -1,6 +1,14 @@
 # EventVault
 
-EventVault is a modern event management platform built using a Turborepo monorepo architecture. The platform enables organizers to create and manage events while allowing users to discover events, register, and manage tickets.
+EventVault is a modern, AI-powered Event & Media Management Platform built using a Turborepo monorepo architecture. The platform enables organizers, photographers, clubs, and viewers to manage, upload, search, and discover event media seamlessly.
+
+## AI/ML Integrated Features
+
+* **Smart Image Tagging**: Automatically detects category labels using AWS Rekognition upon photographer upload.
+* **AI Search**: Search events and media files by exact or auto-generated AI labels.
+* **Facial Recognition Auto-Tagging**: Users can calibrate their Face ID by uploading a reference selfie. Any photo matching their face print during upload triggers real-time WebSocket notifications and automatically links them.
+* **AI Caption Generation**: Generates engaging, social-friendly image summaries and descriptions powered by Google Gemini (with AWS label fallback).
+* **Exact Duplicate Upload Blocker**: Prevents redundant uploads by calculating a SHA-256 buffer hash of image files and matching them.
 
 ## Tech Stack
 

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { authMiddleware } from "../../common/middleware/auth.middleware.js";
-import { uploadMedia, listMedia, removeMedia } from "./media.controller.js";
+import { uploadMedia, listMedia, removeMedia, listTaggedMedia } from "./media.controller.js";
 
 const router = Router();
 
@@ -22,6 +22,7 @@ router.post(
 );
 
 router.get("/events/:eventId/media", authMiddleware, listMedia);
+router.get("/tagged", authMiddleware, listTaggedMedia);
 router.delete("/:mediaId", authMiddleware, removeMedia);
 
 export default router;
