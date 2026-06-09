@@ -1,20 +1,13 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
+import { app } from "./app.js";
+import { env } from "./config/env.js";
+import { logger } from "./config/logger.js";
 
-dotenv.config();
+import { createServer } from "node:http";
+import { initializeSocket } from "./common/services/socket.io.js";
 
-const app = express();
+const server = createServer(app);
+initializeSocket(server);
 
-app.use(cors());
-app.use(express.json());
-
-app.get("/", (req, res) => {
-  res.json({ message: "Server is running 🚀" });
-});
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:5000 `);
+server.listen(env.port, () => {
+  logger.info(`EventVault server is running on port ${env.port}`);
 });

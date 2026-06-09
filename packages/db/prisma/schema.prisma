@@ -1,14 +1,317 @@
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../src/generated"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  ADMIN
+  PHOTOGRAPHER
+  CLUB_MEMBER
+  VIEWER
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum ClubMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ClubJoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  createdAt DateTime @default(now())
+  id              String @id @default(cuid())
+
+  name            String
+  email           String @unique
+  passwordHash    String
+
+  role            Role @default(VIEWER)
+
+  profileImage    String?
+  referenceSelfie String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  clubs           ClubMember[]
+
+  eventsCreated   Event[]
+
+  uploads         Media[]
+
+  comments        Comment[]
+
+  likes           Like[]
+
+  favourites      Favourite[]
+
+  notifications   Notification[]
+
+  taggedMedia     MediaTag[]
+
+  uploadBatches   UploadBatch[]
+
+  refreshTokens   RefreshToken[]
+
+  clubsCreated    Club[]
+
+  clubJoinRequests ClubJoinRequest[] @relation("ClubJoinRequestUser")
+
+  clubJoinReviews  ClubJoinRequest[] @relation("ClubJoinRequestReviewedBy")
+}
+
+model Club {
+  id              String @id @default(cuid())
+
+  name            String
+  description     String?
+
+  logoUrl         String?
+
+  createdById     String
+
+  createdBy       User @relation(fields: [createdById], references: [id])
+
+  createdAt       DateTime @default(now())
+
+  members         ClubMember[]
+
+  events          Event[]
+
+  joinRequests    ClubJoinRequest[]
+}
+
+model ClubMember {
+  id              String @id @default(cuid())
+
+  userId          String
+  clubId          String
+
+  role            ClubMemberRole @default(MEMBER)
+
+  joinedAt        DateTime @default(now())
+
+  user            User @relation(fields: [userId], references: [id])
+
+  club            Club @relation(fields: [clubId], references: [id])
+
+  @@unique([userId, clubId])
+}
+
+model ClubJoinRequest {
+  id              String @id @default(cuid())
+
+  userId          String
+  clubId          String
+
+  status          ClubJoinRequestStatus @default(PENDING)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  reviewedAt      DateTime?
+  reviewedById    String?
+
+  user            User @relation("ClubJoinRequestUser", fields: [userId], references: [id])
+
+  club            Club @relation(fields: [clubId], references: [id])
+
+  reviewedBy      User? @relation("ClubJoinRequestReviewedBy", fields: [reviewedById], references: [id])
+
+  @@unique([userId, clubId])
+}
+
+model RefreshToken {
+  id              String @id @default(cuid())
+
+  userId          String
+  tokenHash       String @unique
+
+  expiresAt       DateTime
+  revokedAt       DateTime?
+
+  createdAt       DateTime @default(now())
+
+  user            User @relation(fields: [userId], references: [id])
+}
+
+model Event {
+  id              String @id @default(cuid())
+
+  title           String
+
+  description     String?
+
+  category        String
+
+  visibility      Visibility @default(PUBLIC)
+
+  location        String?
+
+  eventDate       DateTime
+
+  coverImage      String?
+
+  createdAt       DateTime @default(now())
+
+  createdById     String
+
+  creator         User @relation(fields: [createdById], references: [id])
+
+  clubId          String?
+
+  club            Club? @relation(fields: [clubId], references: [id])
+
+  media           Media[]
+
+  uploadBatches   UploadBatch[]
+}
+
+model UploadBatch {
+  id              String @id @default(cuid())
+
+  uploadedById    String
+
+  eventId         String?
+
+  event           Event? @relation(fields: [eventId], references: [id])  
+
+  createdAt       DateTime @default(now())
+
+  uploader        User @relation(fields: [uploadedById], references: [id])
+
+  media           Media[]
+}
+
+model Media {
+  id              String @id @default(cuid())
+
+  title           String?
+
+  fileUrl         String
+
+  thumbnailUrl    String?
+
+  fileType        String
+
+  fileSize        Int?
+
+  uploadedAt      DateTime @default(now())
+
+  uploadedById    String
+
+  uploader        User @relation(fields: [uploadedById], references: [id])
+
+  eventId         String
+
+  event           Event @relation(fields: [eventId], references: [id])
+
+  batchId         String?
+
+  batch           UploadBatch? @relation(fields: [batchId], references: [id])
+
+  comments        Comment[]
+
+  likes           Like[]
+
+  favourites      Favourite[]
+
+  tags            MediaTag[]
+
+  aiTags          String[] @default([])
+  aiCaption       String?
+  pHash           String?
+  category        String?
+}
+
+model Comment {
+  id              String @id @default(cuid())
+
+  content         String
+
+  createdAt       DateTime @default(now())
+
+  userId          String
+
+  mediaId         String
+
+  user            User @relation(fields: [userId], references: [id])
+
+  media           Media @relation(fields: [mediaId], references: [id])
+}
+
+model Like {
+  id              String @id @default(cuid())
+
+  userId          String
+
+  mediaId         String
+
+  createdAt       DateTime @default(now())
+
+  user            User @relation(fields: [userId], references: [id])
+
+  media           Media @relation(fields: [mediaId], references: [id])
+
+  @@unique([userId, mediaId])
+}
+
+model Favourite {
+  id              String @id @default(cuid())
+
+  userId          String
+
+  mediaId         String
+
+  createdAt       DateTime @default(now())
+
+  user            User @relation(fields: [userId], references: [id])
+
+  media           Media @relation(fields: [mediaId], references: [id])
+
+  @@unique([userId, mediaId])
+}
+
+model MediaTag {
+  id              String @id @default(cuid())
+
+  mediaId         String
+
+  userId          String
+
+  createdAt       DateTime @default(now())
+
+  media           Media @relation(fields: [mediaId], references: [id])
+
+  user            User @relation(fields: [userId], references: [id])
+
+  @@unique([mediaId, userId])
+}
+
+model Notification {
+  id              String @id @default(cuid())
+
+  userId          String
+
+  message         String
+
+  isRead          Boolean @default(false)
+
+  createdAt       DateTime @default(now())
+
+  user            User @relation(fields: [userId], references: [id])
 }
