@@ -49,6 +49,6 @@ export const listLikes = async (mediaId: string) => {
   const likes = await getLikesByMediaId(mediaId);
   return {
     count: likes.length,
-    users: likes.map((like) => like.user),
+    users: likes.map((like: any) => like.user),
   };
 };

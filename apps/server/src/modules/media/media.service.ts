@@ -164,7 +164,7 @@ export const uploadEventMedia = async (
 
   const mediaItems = await Promise.all(uploadPromises);
   return Promise.all(
-    mediaItems.map(async (item) => ({
+    mediaItems.map(async (item: any) => ({
       ...item,
       fileUrl: await signFileUrl(item.fileUrl),
     }))
@@ -191,7 +191,7 @@ export const getEventMedia = async (eventId: string, user: UserSummary) => {
 
   const mediaItems = await findMediaByEventId(eventId);
   return Promise.all(
-    mediaItems.map(async (item) => ({
+    mediaItems.map(async (item: any) => ({
       ...item,
       fileUrl: await signFileUrl(item.fileUrl),
     }))
@@ -233,7 +233,7 @@ export const deleteMedia = async (mediaId: string, user: UserSummary) => {
 export const getTaggedMedia = async (user: UserSummary) => {
   const mediaItems = await findMediaByTagUserId(user.id);
   return Promise.all(
-    mediaItems.map(async (item) => ({
+    mediaItems.map(async (item: any) => ({
       ...item,
       fileUrl: await signFileUrl(item.fileUrl),
     }))
@@ -243,7 +243,7 @@ export const getTaggedMedia = async (user: UserSummary) => {
 export const getUserUploadedMedia = async (userId: string) => {
   const mediaItems = await findMediaByUploadedById(userId);
   return Promise.all(
-    mediaItems.map(async (item) => ({
+    mediaItems.map(async (item: any) => ({
       ...item,
       fileUrl: await signFileUrl(item.fileUrl),
     }))

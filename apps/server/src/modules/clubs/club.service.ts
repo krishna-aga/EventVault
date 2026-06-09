@@ -265,7 +265,7 @@ export const fetchMyClubs = async (userId: string) => {
 
   if (user?.role === "ADMIN") {
     const clubs = await listClubs();
-    return clubs.map((club) => ({
+    return clubs.map((club: any) => ({
       id: club.id,
       club,
     }));
