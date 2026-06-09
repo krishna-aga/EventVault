@@ -120,6 +120,23 @@ const parseOptionalId = (
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
+const parseRequiredId = (
+  value: unknown,
+  fieldName: string,
+): string => {
+  if (typeof value !== "string") {
+    throw new ApiError(400, `${fieldName} must be a string`);
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    throw new ApiError(400, `${fieldName} is required`);
+  }
+
+  return trimmed;
+};
+
 export const parseEventBody = (input: unknown): EventInput => {
   if (!isObject(input)) {
     throw new ApiError(400, "Request body must be an object");
@@ -133,7 +150,7 @@ export const parseEventBody = (input: unknown): EventInput => {
     location: parseOptionalString(input.location, "Location", 240),
     eventDate: parseDateTime(input.eventDate),
     coverImage: parseOptionalString(input.coverImage, "Cover image", 2000),
-    clubId: parseOptionalId(input.clubId, "Club id"),
+    clubId: parseRequiredId(input.clubId, "Club id"),
   };
 };
 

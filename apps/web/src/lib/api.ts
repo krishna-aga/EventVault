@@ -66,6 +66,8 @@ export const api = {
   
   // Clubs
   listClubs: () => request<{ clubs: ClubSummary[] }>("/clubs"),
+  listMyClubs: (accessToken: string) =>
+    request<{ clubs: { id: string; club: ClubSummary }[] }>("/clubs/me", {}, accessToken),
   createClub: (payload: { name: string; description?: string; logoUrl?: string }, accessToken: string) =>
     request<{ club: ClubSummary }>(
       "/clubs",

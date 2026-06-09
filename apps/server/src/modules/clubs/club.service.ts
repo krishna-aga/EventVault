@@ -58,6 +58,20 @@ const assertCanManageClub = async (clubId: string, userId: string, role: string)
   return club;
 };
 
+const assertCanReviewJoinRequests = async (clubId: string, userId: string, role: string) => {
+  if (role === "ADMIN") {
+    return assertClubExists(clubId);
+  }
+
+  const membership = await findClubMembership(userId, clubId);
+
+  if (!membership || membership.role !== "ADMIN") {
+    throw new ApiError(403, COMMON_MESSAGES.FORBIDDEN);
+  }
+
+  return assertClubExists(clubId);
+};
+
 export const fetchClubs = () => listClubs();
 
 export const fetchClub = async (clubId: string) => {
@@ -120,6 +134,17 @@ export const requestJoinClub = async (userId: string, clubId: string) => {
     throw new ApiError(409, "You are already a member of this club");
   }
 
+  // Superadmin is considered an implicit member of every club.
+  // They do not need to create or approve a join request.
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (user?.role === "ADMIN") {
+    throw new ApiError(409, "You are already a member of this club");
+  }
+
   const existingRequest = await findJoinRequestByUserAndClub(userId, clubId);
 
   if (existingRequest && existingRequest.status === "PENDING") {
@@ -156,7 +181,7 @@ export const fetchClubJoinRequests = async (
     role: string;
   },
 ) => {
-  await assertCanManageClub(clubId, actor.id, actor.role);
+  await assertCanReviewJoinRequests(clubId, actor.id, actor.role);
   return listJoinRequests(clubId);
 };
 
@@ -169,7 +194,7 @@ export const reviewClubJoinRequest = async (
   },
   input: ClubJoinRequestReviewInput,
 ) => {
-  await assertCanManageClub(clubId, actor.id, actor.role);
+  await assertCanReviewJoinRequests(clubId, actor.id, actor.role);
 
   const joinRequest = await findJoinRequestById(requestId, clubId);
 
@@ -216,6 +241,19 @@ export const fetchClubMembers = async (
 };
 
 export const fetchMyClubs = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (user?.role === "ADMIN") {
+    const clubs = await listClubs();
+    return clubs.map((club) => ({
+      id: club.id,
+      club,
+    }));
+  }
+
   return listUserClubs(userId);
 };
 
@@ -228,16 +266,11 @@ export const changeMemberRole = async (
   },
   input: ClubMemberRoleInput,
 ) => {
-  const isSuperAdmin = actor.role === "ADMIN";
-  const club = await assertClubExists(clubId);
-  const isOwner = club.createdById === actor.id;
-  const actorMembership = await findClubMembership(actor.id, clubId);
-  const isClubOwner = actorMembership?.role === "OWNER";
-
-  if (!isSuperAdmin && !isOwner && !isClubOwner) {
-    throw new ApiError(403, "Access Denied: Only the club owner or superadmin can change member roles");
+  if (actor.role !== "ADMIN") {
+    throw new ApiError(403, "Access Denied: Only superadmin can change member roles");
   }
 
+  await assertClubExists(clubId);
   const member = await findClubMembershipById(memberId, clubId);
 
   if (!member) {

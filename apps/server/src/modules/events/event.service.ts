@@ -65,7 +65,11 @@ const assertCanManageEvent = async (eventId: string, actor: Actor) => {
 };
 
 const ensureClubOwnershipForCreate = async (input: EventInput, actor: Actor) => {
-  if (!input.clubId || actor.role === "ADMIN") {
+  if (!input.clubId) {
+    throw new ApiError(400, "Club is required when creating an event");
+  }
+
+  if (actor.role === "ADMIN") {
     return;
   }
 
@@ -104,7 +108,7 @@ export const addEvent = async (input: EventInput, actor: Actor) => {
     eventDate: new Date(input.eventDate),
     coverImage: input.coverImage,
     createdById: actor.id,
-    clubId: input.clubId ?? null,
+    clubId: input.clubId,
   });
 
   return event;

@@ -46,7 +46,7 @@ const PRESET_MEDIAS = [
 
 const CATEGORIES = ["all", "Concert", "Sports", "Exhibition", "Meetup", "Social", "Other"];
 
-type ViewPage = "feed" | "clubs" | "upload" | "profile" | "notifications" | "search";
+type ViewPage = "feed" | "clubs" | "upload" | "profile" | "my-photos" | "notifications" | "search";
 
 type EventDraft = {
   title: string;
@@ -110,7 +110,7 @@ const toPayload = (draft: EventDraft): EventInput => ({
   location: draft.location.trim() || undefined,
   eventDate: new Date(draft.eventDate).toISOString(),
   coverImage: draft.coverImage.trim() || undefined,
-  clubId: draft.clubId.trim() || null,
+  clubId: draft.clubId.trim(),
 });
 
 const getInitialSession = (): SessionTokens | null => {
@@ -137,6 +137,7 @@ function App() {
   // Real DB Data Lists
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [clubs, setClubs] = useState<ClubSummary[]>([]);
+  const [myClubs, setMyClubs] = useState<ClubSummary[]>([]);
   
   // Media & Social State per ID
   const [eventMedia, setEventMedia] = useState<Record<string, MediaSummary[]>>({});
@@ -201,7 +202,6 @@ function App() {
   const [uploadSelectedEventId, setUploadSelectedEventId] = useState("");
   const [uploadMediaSource, setUploadMediaSource] = useState<"local" | "preset">("local");
   const [uploadPresetId, setUploadPresetId] = useState(PRESET_MEDIAS[0].id);
-  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadPreviews, setUploadPreviews] = useState<UploadPreview[]>([]);
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -314,12 +314,14 @@ function App() {
         setEventMedia(mediaMap);
 
         // Fetch notifications & favourites list
-        const [notifRes, favsRes] = await Promise.all([
+        const [notifRes, favsRes, myClubsRes] = await Promise.all([
           api.listNotifications(session.accessToken),
           api.listFavourites(session.accessToken),
+          api.listMyClubs(session.accessToken),
         ]);
         setNotifications(notifRes.notifications);
         setMediaFavourites(favsRes.favourites.map((f) => f.mediaId));
+        setMyClubs(myClubsRes.clubs.map((entry) => entry.club));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load database files");
@@ -370,7 +372,7 @@ function App() {
   }, [expandedClubId]);
 
   useEffect(() => {
-    if (view === "profile" && session) {
+    if ((view === "profile" || view === "my-photos") && session) {
       void loadTaggedMedia();
       void loadUserUploadedMedia();
     }
@@ -598,7 +600,7 @@ function App() {
           );
         })
         .catch((err) => {
-          console.error("AI analysis failed for file:", file.name, err);
+          console.error("Auto analysis failed for file:", file.name, err);
           setUploadPreviews((prev) =>
             prev.map((item) =>
               item.previewUrl === previewUrl ? { ...item, status: "error" as const } : item
@@ -618,6 +620,18 @@ function App() {
     if (!session) return;
     if (!uploadSelectedEventId) {
       triggerToast("Please select an event target", "warn");
+      return;
+    }
+
+    const selectedEvent = events.find((event) => event.id === uploadSelectedEventId);
+    if (!selectedEvent || !selectedEvent.clubId) {
+      triggerToast("Please select a club-linked event album.", "warn");
+      return;
+    }
+
+    const selectedClub = myClubs.find((club) => club.id === selectedEvent.clubId);
+    if (!selectedClub) {
+      triggerToast("You must first join the club for this event before uploading media.", "warn");
       return;
     }
 
@@ -716,6 +730,8 @@ function App() {
       triggerToast("Reference selfie uploaded and face print indexed!");
       const payload = await api.me(session.accessToken);
       setCurrentUser(payload.user);
+      setView("my-photos");
+      await loadTaggedMedia();
     } catch (err: any) {
       triggerToast(err.message || "Failed to upload selfie", "warn");
     } finally {
@@ -1357,9 +1373,9 @@ function App() {
                   </div>
                 )}
 
-                {/* AI generated caption */}
+                {/* Auto-generated caption */}
                 {activeMedia && activeMedia.aiCaption && (
-                  <p className="post-ai-caption" style={{ fontStyle: "italic", color: "rgba(167, 139, 250, 1)", marginBottom: "10px", fontSize: "0.85rem" }}>
+                  <p className="post-ai-caption" style={{ fontStyle: "italic", color: "var(--text-secondary)", marginBottom: "10px", fontSize: "0.85rem" }}>
                     ✨ {activeMedia.aiCaption}
                   </p>
                 )}
@@ -1371,7 +1387,7 @@ function App() {
                       Tagged:
                     </span>
                     {activeMedia.tags.map((tagObj: any) => (
-                      <span key={tagObj.id} className="tagged-user-badge" style={{ background: "rgba(99, 102, 241, 0.12)", border: "1px solid rgba(99, 102, 241, 0.25)", color: "var(--accent-primary)", padding: "1px 8px", borderRadius: "12px", fontSize: "0.72rem" }}>
+                      <span key={tagObj.id} className="tagged-user-badge" style={{ background: "rgba(201, 141, 84, 0.12)", border: "1px solid rgba(201, 141, 84, 0.22)", color: "var(--accent-primary)", padding: "1px 8px", borderRadius: "12px", fontSize: "0.72rem" }}>
                         @{tagObj.user?.name || "User"}
                       </span>
                     ))}
@@ -1518,6 +1534,15 @@ function App() {
           >
             <Icon.Profile />
             <span>My Profile</span>
+          </button>
+
+          <button
+            type="button"
+            className={`nav-item ${view === "my-photos" ? "active" : ""}`}
+            onClick={() => setView("my-photos")}
+          >
+            <Icon.Compass />
+            <span>My Photos</span>
           </button>
         </nav>
 
@@ -1703,7 +1728,7 @@ function App() {
                   />
                 </div>
                 <div className="form-group">
-                  <label style={{ fontSize: "0.75rem", fontWeight: "600", color: "var(--text-secondary)" }}>AI Tag</label>
+                  <label style={{ fontSize: "0.75rem", fontWeight: "600", color: "var(--text-secondary)" }}>Auto Tag</label>
                   <input
                     type="text"
                     className="form-input"
@@ -1815,7 +1840,7 @@ function App() {
                   className={`comment-item comment-bubble`}
                   style={{
                     padding: "16px",
-                    background: n.isRead ? "rgba(255, 255, 255, 0.02)" : "rgba(139, 92, 246, 0.06)",
+                    background: n.isRead ? "rgba(255, 255, 255, 0.02)" : "rgba(201, 141, 84, 0.08)",
                     border: "1px solid",
                     borderColor: n.isRead ? "var(--border-glass)" : "var(--border-glass-focus)",
                     borderRadius: "16px",
@@ -1930,16 +1955,14 @@ function App() {
               (() => {
                 const activeClub = clubs.find((c) => c.id === expandedClubId);
                 if (!activeClub) return null;
-                const isOwner = activeClub.createdById === currentUser.id;
                 const members = clubMembersMap[expandedClubId] || [];
                 const requests = clubRequestsMap[expandedClubId] || [];
                 const clubEvents = events.filter((e) => e.clubId === expandedClubId);
 
                 const currentMembership = members.find((m) => m.userId === currentUser?.id);
-                const isClubOwner = currentMembership?.role === "OWNER";
                 const isClubAdmin = currentMembership?.role === "ADMIN";
                 const isSuperAdmin = currentUser?.role === "ADMIN";
-                const canManage = isSuperAdmin || isClubOwner || isClubAdmin;
+                const canManage = isSuperAdmin || isClubAdmin;
 
                 return (
                   <section className="club-drawer" aria-label="Club settings">
@@ -2001,7 +2024,7 @@ function App() {
                                 <td>
                                   {m.role === "OWNER" ? (
                                     <span>OWNER</span>
-                                  ) : (isSuperAdmin || isClubOwner) ? (
+                                  ) : isSuperAdmin ? (
                                     <select
                                       className="form-select"
                                       value={m.role}
@@ -2122,9 +2145,13 @@ function App() {
                   required
                 >
                   <option value="">Select an Event Album...</option>
-                  {events.map((e) => (
-                    <option key={e.id} value={e.id}>{e.title}</option>
-                  ))}
+                  {events
+                    .filter((event) => event.clubId && myClubs.some((club) => club.id === event.clubId))
+                    .map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.title}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -2251,7 +2278,7 @@ function App() {
                                 <label style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontWeight: "600", display: "block", marginBottom: "4px" }}>Tagged People (AI Detected)</label>
                                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                                   {preview.people.map(p => (
-                                    <span key={p.id} className="tagged-user-badge" style={{ background: "rgba(99, 102, 241, 0.15)", border: "1px solid rgba(99, 102, 241, 0.3)", color: "var(--accent-primary)", padding: "2px 8px", borderRadius: "12px", fontSize: "0.75rem" }}>@{p.name}</span>
+                                    <span key={p.id} className="tagged-user-badge" style={{ background: "rgba(201, 141, 84, 0.15)", border: "1px solid rgba(201, 141, 84, 0.28)", color: "var(--accent-primary)", padding: "2px 8px", borderRadius: "12px", fontSize: "0.75rem" }}>@{p.name}</span>
                                   ))}
                                 </div>
                               </div>
@@ -2511,7 +2538,7 @@ function App() {
                   <h4>No Tagged Photos</h4>
                   <p>Click your profile photo to calibrate your face so photographers can auto-tag you.</p>
                 </div>
-              ) : (
+            ) : (
                 <div className="profile-grid">
                   {taggedMedia.map((m) => {
                     const matchedEvent = events.find((e) => e.id === m.eventId);
@@ -2539,6 +2566,135 @@ function App() {
                   })}
                 </div>
               )
+            )}
+          </section>
+        )}
+
+        {/* PAGE: MY PHOTOS */}
+        {view === "my-photos" && currentUser && (
+          <section id="page-my-photos">
+            <header className="page-header">
+              <div>
+                <h2>My Photos</h2>
+                <p style={{ marginTop: "8px", color: "var(--text-secondary)", maxWidth: "760px" }}>
+                  Upload a reference selfie once, then EventVault will automatically collect photos where your face is detected.
+                </p>
+              </div>
+            </header>
+
+            <article className="profile-card" style={{ display: "flex", gap: "24px", alignItems: "center", marginBottom: "24px" }}>
+              <div
+                className="profile-avatar-container"
+                style={{
+                  position: "relative",
+                  cursor: "pointer",
+                  width: "104px",
+                  height: "104px",
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  border: "3px solid var(--accent-primary)",
+                  display: "grid",
+                  placeItems: "center",
+                  background: "rgba(255,255,255,0.05)",
+                  flexShrink: 0,
+                }}
+              >
+                {currentUser.referenceSelfie ? (
+                  <img
+                    src={getMediaSourceUrl(currentUser.referenceSelfie)}
+                    alt="Reference selfie"
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                ) : (
+                  <span style={{ fontSize: "2rem", fontWeight: "bold" }}>
+                    {currentUser.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <label
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    borderRadius: "50%",
+                    background: "rgba(0,0,0,0.45)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: 0,
+                    transition: "opacity 0.2s",
+                    cursor: "pointer",
+                  }}
+                  className="profile-avatar-overlay-hover"
+                >
+                  <Icon.Edit />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={handleSelfieUpload}
+                  />
+                </label>
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <div className="profile-header-row" style={{ marginBottom: "10px" }}>
+                  <h3 className="profile-name">Reference Selfie</h3>
+                  <span className="profile-role-tag">Face Match</span>
+                </div>
+                <p className="profile-email" style={{ marginBottom: "12px" }}>
+                  Use the upload badge to update the selfie that photographers match against when they upload event albums.
+                </p>
+                <div className="profile-stats-row">
+                  <div className="profile-stat-item">
+                    <span className="profile-stat-num">{taggedMedia.length}</span>
+                    <span className="profile-stat-label">Matched Photos</span>
+                  </div>
+                  <div className="profile-stat-item">
+                    <span className="profile-stat-num">{currentUser.referenceSelfie ? "Ready" : "Pending"}</span>
+                    <span className="profile-stat-label">Face Profile</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            {taggedMedia.length === 0 ? (
+              <div className="empty-placeholder">
+                <Icon.Compass />
+                <h4>No Matching Photos Yet</h4>
+                <p>
+                  Once photographers upload event photos containing your face, they will appear here automatically.
+                </p>
+              </div>
+            ) : (
+              <div className="profile-grid">
+                {taggedMedia.map((m) => {
+                  const matchedEvent = events.find((e) => e.id === m.eventId);
+                  return (
+                    <article
+                      key={m.id}
+                      className="profile-grid-item"
+                      onClick={() => setSelectedViewMedia(m)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          setSelectedViewMedia(m);
+                        }
+                      }}
+                    >
+                      {m.fileType === "video" ? (
+                        <video src={getMediaSourceUrl(m.fileUrl)} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted />
+                      ) : (
+                        <img src={getMediaSourceUrl(m.fileUrl)} alt={m.title || "Matched photo"} />
+                      )}
+                      <div className="profile-grid-overlay">
+                        <h4>{m.title || "Untitled Capture"}</h4>
+                        <span>{matchedEvent?.title || "Event Gallery"}</span>
+                        <p>Matched to your selfie</p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
             )}
           </section>
         )}
@@ -2672,10 +2828,11 @@ function App() {
                   id="evt-club"
                   className="form-select"
                   value={eventDraft.clubId}
+                  required={!selectedEventId}
                   onChange={(e) => setEventDraft(prev => ({ ...prev, clubId: e.target.value }))}
                 >
-                  <option value="">None (Standalone)</option>
-                  {clubs.map((club) => (
+                  <option value="">Choose one of your clubs...</option>
+                  {myClubs.map((club) => (
                     <option key={club.id} value={club.id}>{club.name}</option>
                   ))}
                 </select>
@@ -2810,7 +2967,7 @@ function App() {
                 {/* Header */}
                 <header style={{ padding: "16px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#8b5cf6", display: "grid", placeItems: "center", fontWeight: "600", color: "#fff", fontSize: "0.85rem" }}>
+                    <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "linear-gradient(135deg, #c98d54, #8aa189)", display: "grid", placeItems: "center", fontWeight: "600", color: "#fff", fontSize: "0.85rem" }}>
                       {selectedViewMedia.uploader?.name ? selectedViewMedia.uploader.name.charAt(0).toUpperCase() : "?"}
                     </div>
                     <div>
@@ -2837,22 +2994,11 @@ function App() {
                     </p>
                   </div>
 
-                  {/* AI caption */}
-                  {selectedViewMedia.aiCaption && (
-                    <div style={{ background: "rgba(139, 92, 246, 0.05)", borderLeft: "3px solid var(--accent-primary)", padding: "10px 14px", borderRadius: "6px" }}>
-                      <span style={{ fontSize: "0.7rem", color: "var(--accent-primary)", fontWeight: "700", display: "block", textTransform: "uppercase" }}>AI Description</span>
-                      <p style={{ margin: "2px 0 0 0", fontStyle: "italic", fontSize: "0.85rem", color: "#c084fc" }}>
-                        ✨ {selectedViewMedia.aiCaption}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* AI Tags */}
                   {selectedViewMedia.aiTags && selectedViewMedia.aiTags.length > 0 && (
                     <div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                         {selectedViewMedia.aiTags.map((tag) => (
-                          <span key={tag} style={{ fontSize: "0.7rem", padding: "2px 8px", background: "rgba(139, 92, 246, 0.12)", border: "1px solid rgba(139, 92, 246, 0.25)", color: "rgba(167, 139, 250, 1)", borderRadius: "10px" }}>
+                          <span key={tag} style={{ fontSize: "0.7rem", padding: "2px 8px", background: "rgba(201, 141, 84, 0.12)", border: "1px solid rgba(201, 141, 84, 0.22)", color: "#d7b08a", borderRadius: "10px" }}>
                             #{tag}
                           </span>
                         ))}
@@ -2865,7 +3011,7 @@ function App() {
                     <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
                       <span style={{ fontSize: "0.75rem", color: "var(--accent-primary)", fontWeight: "600" }}>Tagged:</span>
                       {selectedViewMedia.tags.map((tagObj: any) => (
-                        <span key={tagObj.id} style={{ background: "rgba(99, 102, 241, 0.12)", border: "1px solid rgba(99, 102, 241, 0.25)", color: "var(--accent-primary)", padding: "1px 6px", borderRadius: "10px", fontSize: "0.7rem" }}>
+                        <span key={tagObj.id} style={{ background: "rgba(201, 141, 84, 0.12)", border: "1px solid rgba(201, 141, 84, 0.22)", color: "var(--accent-primary)", padding: "1px 6px", borderRadius: "10px", fontSize: "0.7rem" }}>
                           @{tagObj.user?.name || "User"}
                         </span>
                       ))}
@@ -2955,3 +3101,5 @@ function App() {
 }
 
 export default App;
+
+

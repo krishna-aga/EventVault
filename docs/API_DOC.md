@@ -202,6 +202,10 @@ Request body:
 }
 ```
 
+Approval permissions:
+* `ADMIN` users can review join requests globally.
+* Club members with `ADMIN` role can review join requests for their club.
+
 ### `GET /clubs/:clubId/members`
 List club members.
 
@@ -215,6 +219,8 @@ Request body:
   "role": "ADMIN"
 }
 ```
+
+Only `ADMIN` users can update club member roles.
 
 ### `DELETE /clubs/:clubId/members/:memberId`
 Remove a club member.
@@ -280,6 +286,8 @@ Request body:
 }
 ```
 
+Event creation requires a linked club. The client should only offer clubs the current user can access.
+
 ### `PATCH /events/:eventId`
 Update an event.
 
@@ -307,6 +315,13 @@ Upload media files under an event album. Supported fields in multipart/form-data
 * `files` (array of file objects, up to 15 files)
 * `title` (optional string title)
 * `metadata` (optional JSON string metadata array containing custom captions, tags, and category per-file)
+
+Upload rules:
+* The target event must belong to a club.
+* The uploader must be a member of that club.
+* `ADMIN` users are treated as implicit members of every club.
+
+The upload flow does not ask the user to pick a club directly. The event selection determines the club.
 
 Header:
 ```http

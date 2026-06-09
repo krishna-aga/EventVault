@@ -35,6 +35,8 @@ export const uploadEventMedia = async (
   title?: string,
   metadata?: string,
 ) => {
+  const isAdmin = user.role === "ADMIN";
+
   if (user.role === "VIEWER") {
     throw new ApiError(403, "Access Denied: Viewers cannot upload media");
   }
@@ -44,22 +46,24 @@ export const uploadEventMedia = async (
     throw new ApiError(404, "Event not found");
   }
 
+  if (!event.clubId) {
+    throw new ApiError(400, "You must select a club before uploading media");
+  }
+
   // Phase 6: Access Control checks
   if (event.visibility === "PRIVATE") {
     if (!event.clubId) {
       throw new ApiError(403, "Private event must belong to a club");
     }
-    const isMember = await findClubMember(user.id, event.clubId);
-    if (!isMember && user.role !== "ADMIN") {
+    const isMember = isAdmin || (await findClubMember(user.id, event.clubId));
+    if (!isMember) {
       throw new ApiError(403, "Access Denied: You must be a member of the club to access this private event");
     }
   }
 
-  if (event.clubId) {
-    const isMember = await findClubMember(user.id, event.clubId);
-    if (!isMember && user.role !== "ADMIN") {
-      throw new ApiError(403, "Access Denied: You must be a member of the club to upload media under its events");
-    }
+  const isMember = isAdmin || (await findClubMember(user.id, event.clubId));
+  if (!isMember) {
+    throw new ApiError(403, "Access Denied: You must first join the club before uploading media");
   }
 
   if (!files || files.length === 0) {
@@ -168,6 +172,7 @@ export const uploadEventMedia = async (
 };
 
 export const getEventMedia = async (eventId: string, user: UserSummary) => {
+  const isAdmin = user.role === "ADMIN";
   const event = await findEventById(eventId);
   if (!event) {
     throw new ApiError(404, "Event not found");
@@ -178,8 +183,8 @@ export const getEventMedia = async (eventId: string, user: UserSummary) => {
     if (!event.clubId) {
       throw new ApiError(403, "Private event must belong to a club");
     }
-    const isMember = await findClubMember(user.id, event.clubId);
-    if (!isMember && user.role !== "ADMIN") {
+    const isMember = isAdmin || (await findClubMember(user.id, event.clubId));
+    if (!isMember) {
       throw new ApiError(403, "Access Denied: You must be a member of the club to view this private event");
     }
   }
@@ -292,6 +297,7 @@ export const analyzeUploadedFile = async (file: Express.Multer.File) => {
 };
 
 export const downloadMediaFile = async (mediaId: string, user: UserSummary) => {
+  const isAdmin = user.role === "ADMIN";
   const mediaItem = await findMediaById(mediaId);
   if (!mediaItem) {
     throw new ApiError(404, "Media item not found");
@@ -301,8 +307,8 @@ export const downloadMediaFile = async (mediaId: string, user: UserSummary) => {
     if (!mediaItem.event.clubId) {
       throw new ApiError(403, "Private event must belong to a club");
     }
-    const isMember = await findClubMember(user.id, mediaItem.event.clubId);
-    if (!isMember && user.role !== "ADMIN") {
+    const isMember = isAdmin || (await findClubMember(user.id, mediaItem.event.clubId));
+    if (!isMember) {
       throw new ApiError(403, "Access Denied: You must be a member of the club to download private event media");
     }
   }

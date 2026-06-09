@@ -59,7 +59,7 @@ export interface EventInput {
   location?: string;
   eventDate: string;
   coverImage?: string;
-  clubId?: string | null;
+  clubId: string;
 }
 
 export interface EventFilters {
@@ -139,4 +139,3 @@ export interface SearchFilters {
   uploaderId?: string;
   tag?: string;
 }
-
