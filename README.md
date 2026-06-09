@@ -1,7 +1,7 @@
 # EventVault
 
 EventVault is a modern, AI-powered Event & Media Management Platform built using a Turborepo monorepo architecture. The platform enables organizers, photographers, clubs, and viewers to manage, upload, search, and discover event media seamlessly.
-
+Backend URL: https://eventvault-vjxc.onrender.com
 ## AI/ML Integrated Features
 
 * **Smart Image Tagging**: Automatically detects category labels using AWS Rekognition upon photographer upload.
